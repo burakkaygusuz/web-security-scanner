@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.Comparator;
+
 public class ReportService {
     
     private final List<Vulnerability> vulnerabilities = new CopyOnWriteArrayList<>();
@@ -20,7 +21,6 @@ public class ReportService {
         return Collections.unmodifiableList(vulnerabilities);
     }
     
-    // Java 21+ Enhanced collection operations
     public List<Vulnerability> getVulnerabilitiesBySeverity() {
         return vulnerabilities.stream()
             .sorted(Comparator.comparing(Vulnerability::getSeverityScore).reversed())

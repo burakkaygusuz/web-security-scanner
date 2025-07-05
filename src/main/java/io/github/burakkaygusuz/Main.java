@@ -36,9 +36,8 @@ public class Main {
                         }
                         targetUrl = line.trim();
                         break; 
-                    } catch (UserInterruptException e) {
-                        return;
-                    } catch (EndOfFileException e) {
+                    } catch (UserInterruptException | EndOfFileException e) {
+                        logger.info("User interrupted or reached end of file. Exiting...");
                         return;
                     }
                 }
@@ -61,9 +60,8 @@ public class Main {
                 printVulnerabilitiesTable(vulnerabilities);
             }
 
-            logger.info("\nScan Complete!");
-            logger.info("Total URLs scanned: {}", scanner.getVisitedUrlsCount());
-            logger.info("Vulnerabilities found: {}", vulnerabilities.size());
+            logger.info("\nScan Complete! Total URLs scanned: {}, Vulnerabilities found: {}", 
+                scanner.getVisitedUrlsCount(), vulnerabilities.size());
         } finally {
             scanner.close();
         }
@@ -75,7 +73,6 @@ public class Main {
         final String RED = "\033[0;31m";    // SQL Injection
         final String YELLOW = "\033[0;33m"; // XSS
         final String BLUE = "\033[0;34m";   // Sensitive Information Exposure
-        final String GREEN = "\033[0;32m";  // General info/success (not used for vulns, but good to have)
         final String CYAN = "\033[0;36m";   // Table headers
 
         int typeWidth = "Type".length();

@@ -18,7 +18,6 @@ public class HttpClientService {
 
   private static final long MAX_RESPONSE_SIZE = 10 * 1024 * 1024; // 10MB
 
-  // Browser-like headers for avoiding bot detection
   private static final Map<String, String> BROWSER_HEADERS = Map.ofEntries(
       Map.entry("User-Agent",
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
@@ -106,10 +105,7 @@ public class HttpClientService {
 
   private Request addBrowserHeaders(Request originalRequest) {
     Request.Builder builder = originalRequest.newBuilder();
-
-    // Add all browser headers from the map
     BROWSER_HEADERS.forEach(builder::header);
-
     return builder.build();
   }
 
