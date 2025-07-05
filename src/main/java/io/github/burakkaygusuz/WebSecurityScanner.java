@@ -141,13 +141,12 @@ public class WebSecurityScanner {
   }
 
   private void checkSensitiveInfo(String url) {
-    Map<String, Pattern> sensitivePatterns = new HashMap<>();
-    sensitivePatterns.put("email", Pattern.compile("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"));
-    sensitivePatterns.put("phone", Pattern.compile("\\b\\d{3}[-.]?\\d{3}[-.]?\\d{4}\\b"));
-    sensitivePatterns.put("ssn", Pattern.compile("\\b\\d{3}-\\d{2}-\\d{4}\\b"));
-    sensitivePatterns.put("api_key",
-        Pattern.compile("api[_-]?key[_-]?(['\"`])([a-zA-Z0-9]{32,45})\\1",
-            Pattern.CASE_INSENSITIVE));
+    Map<String, Pattern> sensitivePatterns = Map.ofEntries(
+        Map.entry("email", Pattern.compile("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}")),
+        Map.entry("phone", Pattern.compile("\\b\\d{3}[-.]?\\d{3}[-.]?\\d{4}\\b")),
+        Map.entry("ssn", Pattern.compile("\\b\\d{3}-\\d{2}-\\d{4}\\b")),
+        Map.entry("api_key", Pattern.compile("api[_-]?key[_-]?(['\"`])([a-zA-Z0-9]{32,45})\\1", Pattern.CASE_INSENSITIVE))
+    );
 
     try {
       Request request = new Request.Builder().url(url).build();
