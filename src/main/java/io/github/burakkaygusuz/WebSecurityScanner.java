@@ -207,8 +207,7 @@ public class WebSecurityScanner {
 
     for (String payload : sqlPayloads) {
       try {
-        URI uri = new URI(url);
-        String query = uri.getQuery();
+        String query = new URI(url).getQuery();
 
         if (query != null) {
           String[] params = query.split("&");
@@ -242,12 +241,7 @@ public class WebSecurityScanner {
 
   private synchronized void reportVulnerability(Vulnerability vulnerability) {
     if (vulnerabilities.stream().noneMatch(v -> v.equals(vulnerability))) {
-      vulnerabilities.add(vulnerability);
-      logger.warn("[VULNERABILITY FOUND]\nType: {}\nURL: {}\nParameter: {}\nPayload: {}\n",
-          vulnerability.type(),
-          vulnerability.url(),
-          vulnerability.parameter(),
-          vulnerability.payload());
+      vulnerabilities.add(vulnerability);    
     }
   }
 
