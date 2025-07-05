@@ -1,0 +1,22 @@
+# Maven
+/target/
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# IntelliJ IDEA
+*.iml
+.idea/
+out/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Other
+*.swp 
