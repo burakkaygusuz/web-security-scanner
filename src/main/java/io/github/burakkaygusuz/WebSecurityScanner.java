@@ -167,8 +167,6 @@ public class WebSecurityScanner {
         }
       }
     } catch (Exception e) {
-      // System.err.println("Error checking sensitive information on " + url + ": " +
-      // e.getMessage());
     }
   }
 
@@ -207,7 +205,7 @@ public class WebSecurityScanner {
           }
         }
       } catch (Exception e) {
-        // System.err.println("Error testing XSS on " + url + ": " + e.getMessage());
+
       }
     }
   }
@@ -245,8 +243,7 @@ public class WebSecurityScanner {
           }
         }
       } catch (Exception e) {
-        // System.err.println("Error testing SQL injection on " + url + ": " +
-        // e.getMessage());
+
       }
     }
   }
