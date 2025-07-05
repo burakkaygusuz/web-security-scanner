@@ -3,17 +3,9 @@ package io.github.burakkaygusuz;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.regex.*;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -24,7 +16,12 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class WebSecurityScanner {
+
+  private static final Logger logger = LoggerFactory.getLogger(WebSecurityScanner.class);
 
   private final String targetUrl;
   private final String targetHost;
@@ -35,11 +32,6 @@ public class WebSecurityScanner {
 
   private final OkHttpClient httpClient;
   private final ExecutorService executor = Executors.newFixedThreadPool(10);
-
-  private static final String RESET = "\u001B[0m";
-  private static final String RED = "\u001B[31m";
-  private static final String GREEN = "\u001B[32m";
-  private static final String BLUE = "\u001B[34m";
 
   public WebSecurityScanner(String targetUrl, int maxDepth) {
     this.targetUrl = targetUrl;
@@ -60,7 +52,7 @@ public class WebSecurityScanner {
   }
 
   public List<Vulnerability> scan() {
-    System.out.println(BLUE + "\nStarting security scan of " + targetUrl + RESET + "\n");
+    logger.info("\nStarting security scan of {}\n", targetUrl);
 
     crawl(targetUrl, 0);
 
@@ -81,7 +73,7 @@ public class WebSecurityScanner {
     okHttpExecutor.shutdown();
     try {
       if (!okHttpExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-        System.err.println("OkHttp dispatcher did not terminate in 5 seconds. Forcing shutdown...");
+        logger.warn("OkHttp dispatcher did not terminate in 5 seconds. Forcing shutdown...");
         okHttpExecutor.shutdownNow();
       }
     } catch (InterruptedException e) {
@@ -93,7 +85,7 @@ public class WebSecurityScanner {
       try {
         httpClient.cache().close();
       } catch (IOException e) {
-        System.err.println("Error closing OkHttp cache: " + e.getMessage());
+        logger.error("Error closing OkHttp cache: {}", e.getMessage());
       }
     }
   }
@@ -103,7 +95,7 @@ public class WebSecurityScanner {
       return;
     }
 
-    System.out.println("Crawling: " + url);
+    logger.info("Crawling: {}", url);
     executor.submit(() -> {
       checkSqlInjection(url);
       checkXss(url);
@@ -131,12 +123,12 @@ public class WebSecurityScanner {
               crawl(nextUrl, depth + 1);
             }
           } catch (URISyntaxException e) {
-            // Ignore malformed URLs
+            logger.warn("Malformed URL encountered while crawling: {} ({})", nextUrl, e.getMessage());
           }
         }
       }
     } catch (IOException e) {
-      System.err.println("Error crawling " + url + ": " + e.getMessage());
+      logger.error("Error crawling {}: {}", url, e.getMessage());
     }
   }
 
@@ -145,8 +137,8 @@ public class WebSecurityScanner {
         Map.entry("email", Pattern.compile("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}")),
         Map.entry("phone", Pattern.compile("\\b\\d{3}[-.]?\\d{3}[-.]?\\d{4}\\b")),
         Map.entry("ssn", Pattern.compile("\\b\\d{3}-\\d{2}-\\d{4}\\b")),
-        Map.entry("api_key", Pattern.compile("api[_-]?key[_-]?(['\"`])([a-zA-Z0-9]{32,45})\\1", Pattern.CASE_INSENSITIVE))
-    );
+        Map.entry("api_key",
+            Pattern.compile("api[_-]?key[_-]?(['\"`])([a-zA-Z0-9]{32,45})\\1", Pattern.CASE_INSENSITIVE)));
 
     try {
       Request request = new Request.Builder().url(url).build();
@@ -166,6 +158,7 @@ public class WebSecurityScanner {
         }
       }
     } catch (Exception e) {
+      logger.warn("Error checking sensitive info on {}: {}", url, e.getMessage());
     }
   }
 
@@ -204,7 +197,7 @@ public class WebSecurityScanner {
           }
         }
       } catch (Exception e) {
-
+        logger.warn("Error checking XSS on {}: {}", url, e.getMessage());
       }
     }
   }
@@ -242,7 +235,7 @@ public class WebSecurityScanner {
           }
         }
       } catch (Exception e) {
-
+        logger.warn("Error checking SQL Injection on {}: {}", url, e.getMessage());
       }
     }
   }
@@ -250,12 +243,11 @@ public class WebSecurityScanner {
   private synchronized void reportVulnerability(Vulnerability vulnerability) {
     if (vulnerabilities.stream().noneMatch(v -> v.equals(vulnerability))) {
       vulnerabilities.add(vulnerability);
-      System.out.println(RED + "[VULNERABILITY FOUND]" + RESET);
-      System.out.println("Type: " + vulnerability.type());
-      System.out.println("URL: " + vulnerability.url());
-      System.out.println("Parameter: " + vulnerability.parameter());
-      System.out.println("Payload: " + vulnerability.payload());
-      System.out.println();
+      logger.warn("[VULNERABILITY FOUND]\nType: {}\nURL: {}\nParameter: {}\nPayload: {}\n",
+          vulnerability.type(),
+          vulnerability.url(),
+          vulnerability.parameter(),
+          vulnerability.payload());
     }
   }
 

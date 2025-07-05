@@ -1,18 +1,14 @@
 package io.github.burakkaygusuz;
 
-import org.jline.reader.EndOfFileException;
-import org.jline.reader.LineReader;
-import org.jline.reader.LineReaderBuilder;
-import org.jline.reader.UserInterruptException;
-import org.jline.terminal.Terminal;
-import org.jline.terminal.TerminalBuilder;
+import org.jline.reader.*;
+import org.jline.terminal.*;
+import org.slf4j.*;
 
 import java.io.IOException;
 import java.util.List;
 
 public class Main {
-    public static final String GREEN = "\u001b[0;32m";
-    public static final String RESET = "\u001b[0m";
+    private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
     public static void main(String[] args) {
         String targetUrl = null;
@@ -35,7 +31,7 @@ public class Main {
                         }
 
                         if (line.trim().isEmpty()) {
-                            System.out.println("URL cannot be empty. Please try again.");
+                            logger.info("URL cannot be empty. Please try again.");
                             continue;
                         }
                         targetUrl = line.trim();
@@ -47,13 +43,13 @@ public class Main {
                     }
                 }
             } catch (IOException e) {
-                System.err.println("Error initializing terminal: " + e.getMessage());
+                logger.error("Error initializing terminal: {}", e.getMessage());
                 System.exit(1);
             }
         }
 
         if (targetUrl == null || targetUrl.trim().isEmpty()) {
-            System.out.println("No target URL provided. Exiting.");
+            logger.info("No target URL provided. Exiting.");
             System.exit(0);
         }
 
@@ -61,9 +57,9 @@ public class Main {
         try {
             List<Vulnerability> vulnerabilities = scanner.scan();
 
-            System.out.println(GREEN + "\nScan Complete!" + RESET);
-            System.out.println("Total URLs scanned: " + scanner.getVisitedUrlsCount());
-            System.out.println("Vulnerabilities found: " + vulnerabilities.size());
+            logger.info("\nScan Complete!");
+            logger.info("Total URLs scanned: {}", scanner.getVisitedUrlsCount());
+            logger.info("Vulnerabilities found: {}", vulnerabilities.size());
         } finally {
             scanner.close();
         }
