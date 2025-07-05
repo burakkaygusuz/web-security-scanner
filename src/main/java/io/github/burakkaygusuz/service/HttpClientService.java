@@ -58,15 +58,21 @@ public class HttpClientService {
     return httpClient.newCall(request).execute();
   }
 
-  public Response executeRequestWithRateLimit(String url) throws IOException {
-    return rateLimiter.executeSupplier(() -> {
-      try {
-        return executeRequest(url);
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-    });
-  }
+    public Response executeRequestWithRateLimit(String url) throws IOException {
+        return rateLimiter.executeSupplier(() -> {
+            try {
+                return executeRequest(url);
+            } catch (Exception e) {
+                if (e instanceof IOException ioe) {
+                    throw new RuntimeException("HTTP request failed: " + ioe.getMessage(), ioe);
+                } else if (e instanceof RuntimeException re) {
+                    throw re;
+                } else {
+                    throw new RuntimeException("Unexpected error during HTTP request", e);
+                }
+            }
+        });
+    }
 
   public String safeReadResponse(Response response) throws IOException {
     if (response.body() == null) {
@@ -88,7 +94,7 @@ public class HttpClientService {
 
   private boolean isSafeContentType(String contentType) {
     if (contentType == null || contentType.isEmpty()) {
-      return true; // Default to safe if unknown
+      return true;
     }
 
     String lowerContentType = contentType.toLowerCase();

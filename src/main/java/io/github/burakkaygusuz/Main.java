@@ -96,27 +96,24 @@ public class Main {
         payloadWidth += 2;
 
         String format = "| %-" + typeWidth + "s | %-" + urlWidth + "s | %-" + parameterWidth + "s | %-" + payloadWidth + "s |%n";
-        String separator = "+" + "-".repeat(typeWidth + 2) + "+" + "-".repeat(urlWidth + 2) + "+" + "-".repeat(parameterWidth + 2) + "+" + "-".repeat(payloadWidth + 2) + "+";
+        String separator = "+%s+%s+%s+%s+".formatted(
+            "-".repeat(typeWidth + 2),
+            "-".repeat(urlWidth + 2), 
+            "-".repeat(parameterWidth + 2),
+            "-".repeat(payloadWidth + 2)
+        );
 
         System.out.println(separator);
         System.out.printf(CYAN + format + RESET, "Type", "URL", "Parameter", "Payload");
         System.out.println(separator);
 
         for (Vulnerability vul : vulnerabilities) {
-            String color;
-            switch (vul.type()) {
-                case "SQL Injection":
-                    color = RED;
-                    break;
-                case "Cross-Site Scripting (XSS)":
-                    color = YELLOW;
-                    break;
-                case "Sensitive Information Exposure":
-                    color = BLUE;
-                    break;
-                default:
-                    color = RESET;
-            }
+            String color = switch (vul.type()) {
+                case "SQL Injection" -> RED;
+                case "Cross-Site Scripting (XSS)" -> YELLOW;
+                case "Sensitive Information Exposure" -> BLUE;
+                default -> RESET;
+            };
             System.out.printf(color + format + RESET,
                     vul.type(),
                     vul.url(),

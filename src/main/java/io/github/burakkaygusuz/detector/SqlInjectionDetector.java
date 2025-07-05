@@ -67,17 +67,15 @@ public class SqlInjectionDetector {
     }
     
     private boolean containsSqlErrorIndicators(String responseText) {
-        String[] sqlErrorIndicators = {
-            "sql", "mysql", "sqlite", "postgresql", "oracle", "mariadb",
-            "syntax error", "mysql_fetch", "mysql_query", "warning:", "error:",
-            "odbc", "microsoft access", "jdbc", "ora-", "sql server"
-        };
+        String sqlErrorPatterns = """
+            sql mysql sqlite postgresql oracle mariadb
+            syntax error mysql_fetch mysql_query warning: error:
+            odbc microsoft access jdbc ora- sql server
+            """;
         
-        for (String indicator : sqlErrorIndicators) {
-            if (responseText.contains(indicator)) {
-                return true;
-            }
-        }
-        return false;
+        return sqlErrorPatterns.lines()
+            .flatMap(line -> java.util.Arrays.stream(line.split("\\s+")))
+            .filter(indicator -> !indicator.isEmpty())
+            .anyMatch(responseText::contains);
     }
 }
