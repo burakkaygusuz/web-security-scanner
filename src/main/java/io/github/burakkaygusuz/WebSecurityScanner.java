@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.regex.*;
@@ -23,10 +24,22 @@ import org.slf4j.LoggerFactory;
 import io.github.burakkaygusuz.config.ConfigLoader;
 import io.github.burakkaygusuz.config.ScannerConfig;
 
+import io.github.resilience4j.ratelimiter.RateLimiter;
+import io.github.resilience4j.ratelimiter.RateLimiterConfig;
+
 public class WebSecurityScanner {
 
   private static final Logger logger = LoggerFactory.getLogger(WebSecurityScanner.class);
-  private static final long MAX_RESPONSE_SIZE = 10 * 1024 * 1024;
+  private static final long MAX_RESPONSE_SIZE = 10 * 1024 * 1024; // 10MB
+  
+  private static final Map<String, String> BROWSER_HEADERS = Map.ofEntries(
+      Map.entry("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
+      Map.entry("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"),
+      Map.entry("Accept-Language", "en-US,en;q=0.5"),
+      Map.entry("DNT", "1"),
+      Map.entry("Connection", "keep-alive"),
+      Map.entry("Upgrade-Insecure-Requests", "1")
+  );
 
   private final String targetUrl;
   private final String targetHost;
@@ -34,10 +47,12 @@ public class WebSecurityScanner {
 
   private final Set<String> visitedUrls = ConcurrentHashMap.newKeySet();
   private final List<Vulnerability> vulnerabilities = Collections.synchronizedList(new ArrayList<>());
+  private final List<CompletableFuture<Void>> vulnerabilityTasks = Collections.synchronizedList(new ArrayList<>());
 
   private final OkHttpClient httpClient;
   private final ExecutorService executor;
   private final ScannerConfig config;
+  private final RateLimiter rateLimiter;
 
   public WebSecurityScanner(String targetUrl) {
     this.config = ConfigLoader.loadConfig();
@@ -60,14 +75,26 @@ public class WebSecurityScanner {
     }
     
     this.httpClient = new OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(config.scanSettings().timeoutSeconds(), TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
         .retryOnConnectionFailure(true)
+        .addInterceptor(chain -> {
+          Request originalRequest = chain.request();
+          Request newRequest = addBrowserHeaders(originalRequest);
+          return chain.proceed(newRequest);
+        })
         .build();
     
     this.executor = Executors.newFixedThreadPool(10);
+    
+    RateLimiterConfig rateLimiterConfig = RateLimiterConfig.custom()
+        .limitForPeriod(3)
+        .limitRefreshPeriod(Duration.ofSeconds(1))
+        .timeoutDuration(Duration.ofSeconds(30)) // 3 requests per second
+        .build();
+    this.rateLimiter = RateLimiter.of("scanner-rate-limiter", rateLimiterConfig);
   }
 
   public List<Vulnerability> scan() {
@@ -75,7 +102,13 @@ public class WebSecurityScanner {
 
     crawl(targetUrl, 0);
 
+    logger.info("Waiting for {} vulnerability checks to complete...", vulnerabilityTasks.size());
+    CompletableFuture.allOf(vulnerabilityTasks.toArray(new CompletableFuture[0]))
+        .orTimeout(120, TimeUnit.SECONDS)
+        .join();
+
     executor.shutdown();
+    
     try {
       if (!executor.awaitTermination(60, TimeUnit.MINUTES)) {
         executor.shutdownNow();
@@ -115,11 +148,10 @@ public class WebSecurityScanner {
     }
 
     logger.info("Crawling: {}", url);
-    executor.submit(() -> {
-      checkSqlInjection(url);
-      checkXss(url);
-      checkSensitiveInfo(url);
-    });
+    
+    vulnerabilityTasks.add(CompletableFuture.runAsync(() -> checkSqlInjection(url), executor));
+    vulnerabilityTasks.add(CompletableFuture.runAsync(() -> checkXss(url), executor));
+    vulnerabilityTasks.add(CompletableFuture.runAsync(() -> checkSensitiveInfo(url), executor));
 
     try {
       Request request = new Request.Builder().url(url).build();
@@ -137,6 +169,8 @@ public class WebSecurityScanner {
           if (!html.isEmpty()) {
             Document doc = Jsoup.parse(html, url);
             Elements links = doc.select("a[href]");
+            logger.info("Found {} links on page: {}", links.size(), url);
+            
 
             for (Element link : links) {
               String nextUrl = link.absUrl("href");
@@ -146,6 +180,7 @@ public class WebSecurityScanner {
               try {
                 URI nextUri = new URI(nextUrl);
                 if (targetHost.equalsIgnoreCase(nextUri.getHost())) {
+                  logger.info("Following link: {} (depth {})", nextUrl, depth + 1);
                   crawl(nextUrl, depth + 1);
                 }
               } catch (URISyntaxException e) {
@@ -173,32 +208,39 @@ public class WebSecurityScanner {
     }
 
     try {
-      Request request = new Request.Builder().url(url).build();
-      try (Response response = httpClient.newCall(request).execute()) {
-        if (!response.isSuccessful()) {
-          return;
-        }
-        
-        String responseText = safeReadResponse(response);
-        if (responseText.isEmpty()) {
-          return;
-        }
+      rateLimiter.executeSupplier(() -> {
+        try {
+          Request request = new Request.Builder().url(url).build();
+          try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+              return null;
+            }
+            
+            String responseText = safeReadResponse(response);
+            if (responseText.isEmpty()) {
+              return null;
+            }
 
-        for (Map.Entry<String, Pattern> entry : sensitivePatterns.entrySet()) {
-          Pattern pattern = entry.getValue();
-          Matcher matcher = pattern.matcher(responseText);
+            for (Map.Entry<String, Pattern> entry : sensitivePatterns.entrySet()) {
+              Pattern pattern = entry.getValue();
+              Matcher matcher = pattern.matcher(responseText);
 
-          while (matcher.find()) {
-            reportVulnerability(new Vulnerability(
-                "Sensitive Information Exposure",
-                url,
-                entry.getKey(),
-                entry.getValue().pattern()));
+              while (matcher.find()) {
+                reportVulnerability(new Vulnerability(
+                    "Sensitive Information Exposure",
+                    url,
+                    entry.getKey(),
+                    entry.getValue().pattern()));
+              }
+            }
           }
+        } catch (Exception e) {
+          logger.warn("Error checking sensitive info on {}: {}", url, e.getMessage());
         }
-      }
+        return null;
+      });
     } catch (Exception e) {
-      logger.warn("Error checking sensitive info on {}: {}", url, e.getMessage());
+      logger.warn("Error with rate limiter for sensitive info check on {}: {}", url, e.getMessage());
     }
   }
 
@@ -218,23 +260,30 @@ public class WebSecurityScanner {
               String encodedPayload = java.net.URLEncoder.encode(payload, StandardCharsets.UTF_8);
               String testUrl = buildTestUrl(url, param.getKey(), encodedPayload);
 
-              Request request = new Request.Builder().url(testUrl).build();
-              try (Response response = httpClient.newCall(request).execute()) {
-                if (!response.isSuccessful()) {
-                  continue;
+              rateLimiter.executeSupplier(() -> {
+                try {
+                  Request request = new Request.Builder().url(testUrl).build();
+                  try (Response response = httpClient.newCall(request).execute()) {
+                    if (!response.isSuccessful()) {
+                      return null;
+                    }
+                    
+                    String responseText = safeReadResponse(response);
+                    if (responseText.contains(payload)) {
+                      reportVulnerability(new Vulnerability(
+                          "Cross-Site Scripting (XSS)",
+                          url,
+                          param.getKey(),
+                          payload));
+                    }
+                  }
+                } catch (Exception e) {
+                  logger.warn("Error testing XSS payload on parameter {}: {}", param.getKey(), e.getMessage());
                 }
-                
-                String responseText = safeReadResponse(response);
-                if (responseText.contains(payload)) {
-                  reportVulnerability(new Vulnerability(
-                      "Cross-Site Scripting (XSS)",
-                      url,
-                      param.getKey(),
-                      payload));
-                }
-              }
+                return null;
+              });
             } catch (Exception e) {
-              logger.debug("Error testing XSS payload on parameter {}: {}", param.getKey(), e.getMessage());
+              logger.warn("Error with rate limiter for XSS test on parameter {}: {}", param.getKey(), e.getMessage());
             }
           }
         }
@@ -258,23 +307,30 @@ public class WebSecurityScanner {
             try {
               String testUrl = buildTestUrl(url, param.getKey(), payload);
 
-              Request request = new Request.Builder().url(testUrl).build();
-              try (Response response = httpClient.newCall(request).execute()) {
-                if (!response.isSuccessful()) {
-                  continue;
+              rateLimiter.executeSupplier(() -> {
+                try {
+                  Request request = new Request.Builder().url(testUrl).build();
+                  try (Response response = httpClient.newCall(request).execute()) {
+                    if (!response.isSuccessful()) {
+                      return null;
+                    }
+                    
+                    String responseText = safeReadResponse(response).toLowerCase();
+                    if (containsSqlErrorIndicators(responseText)) {
+                      reportVulnerability(new Vulnerability(
+                          "SQL Injection",
+                          url,
+                          param.getKey(),
+                          payload));
+                    }
+                  }
+                } catch (Exception e) {
+                  logger.warn("Error testing SQL payload on parameter {}: {}", param.getKey(), e.getMessage());
                 }
-                
-                String responseText = safeReadResponse(response).toLowerCase();
-                if (containsSqlErrorIndicators(responseText)) {
-                  reportVulnerability(new Vulnerability(
-                      "SQL Injection",
-                      url,
-                      param.getKey(),
-                      payload));
-                }
-              }
+                return null;
+              });
             } catch (Exception e) {
-              logger.debug("Error testing SQL payload on parameter {}: {}", param.getKey(), e.getMessage());
+              logger.warn("Error with rate limiter for SQL injection test on parameter {}: {}", param.getKey(), e.getMessage());
             }
           }
         }
@@ -319,7 +375,6 @@ public class WebSecurityScanner {
     
     String contentType = response.header("Content-Type", "");
     if (!isSafeContentType(contentType)) {
-      logger.debug("Skipping non-text content type: {}", contentType);
       return "";
     }
     
@@ -405,4 +460,13 @@ public class WebSecurityScanner {
     }
     return false;
   }
+
+
+  private Request addBrowserHeaders(Request originalRequest) {
+    Request.Builder builder = originalRequest.newBuilder();
+    BROWSER_HEADERS.forEach(builder::header);
+    
+    return builder.build();
+  }
+
 }
