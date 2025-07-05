@@ -3,6 +3,7 @@ package io.github.burakkaygusuz;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.regex.*;
@@ -19,36 +20,54 @@ import okhttp3.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.github.burakkaygusuz.config.ConfigLoader;
+import io.github.burakkaygusuz.config.ScannerConfig;
+
 public class WebSecurityScanner {
 
   private static final Logger logger = LoggerFactory.getLogger(WebSecurityScanner.class);
+  private static final long MAX_RESPONSE_SIZE = 10 * 1024 * 1024;
 
   private final String targetUrl;
   private final String targetHost;
   private final int maxDepth;
 
   private final Set<String> visitedUrls = ConcurrentHashMap.newKeySet();
-  private final List<Vulnerability> vulnerabilities = new ArrayList<>();
+  private final List<Vulnerability> vulnerabilities = Collections.synchronizedList(new ArrayList<>());
 
   private final OkHttpClient httpClient;
-  private final ExecutorService executor = Executors.newFixedThreadPool(10);
+  private final ExecutorService executor;
+  private final ScannerConfig config;
 
-  public WebSecurityScanner(String targetUrl, int maxDepth) {
+  public WebSecurityScanner(String targetUrl) {
+    this.config = ConfigLoader.loadConfig();
+    
+    if (!isValidUrl(targetUrl)) {
+      throw new IllegalArgumentException("Invalid target URL: " + targetUrl);
+    }
+    
     this.targetUrl = targetUrl;
-    this.maxDepth = maxDepth;
+    this.maxDepth = this.config.scanSettings().maxDepth();
+    
     try {
-      this.targetHost = new URI(targetUrl).getHost();
+      URI uri = new URI(targetUrl);
+      this.targetHost = uri.getHost();
+      if (this.targetHost == null) {
+        throw new IllegalArgumentException("URL must have a valid host: " + targetUrl);
+      }
     } catch (URISyntaxException e) {
       throw new IllegalArgumentException("Invalid target URL: " + targetUrl, e);
     }
+    
     this.httpClient = new OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(config.scanSettings().timeoutSeconds(), TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .retryOnConnectionFailure(true)
         .build();
-  }
-
-  public WebSecurityScanner(String targetUrl) {
-    this(targetUrl, 3);
+    
+    this.executor = Executors.newFixedThreadPool(10);
   }
 
   public List<Vulnerability> scan() {
@@ -104,26 +123,35 @@ public class WebSecurityScanner {
 
     try {
       Request request = new Request.Builder().url(url).build();
-      Response response = httpClient.newCall(request).execute();
-      String contentType = response.header("Content-Type");
+      try (Response response = httpClient.newCall(request).execute()) {
+        if (!response.isSuccessful()) {
+          logger.warn("Non-successful response for {}: {}", url, response.code());
+          return;
+        }
+        
+        String contentType = response.header("Content-Type", "");
+        if (contentType.toLowerCase().contains("text/html") || 
+            contentType.toLowerCase().contains("application/xhtml+xml")) {
+          
+          String html = safeReadResponse(response);
+          if (!html.isEmpty()) {
+            Document doc = Jsoup.parse(html, url);
+            Elements links = doc.select("a[href]");
 
-      if (contentType != null && contentType.toLowerCase().contains("text/html")) {
-        String html = response.body().string();
-        Document doc = Jsoup.parse(html, url);
-        Elements links = doc.select("a[href]");
-
-        for (Element link : links) {
-          String nextUrl = link.absUrl("href");
-          if (nextUrl.isBlank()) {
-            continue;
-          }
-          try {
-            URI nextUri = new URI(nextUrl);
-            if (targetHost.equalsIgnoreCase(nextUri.getHost())) {
-              crawl(nextUrl, depth + 1);
+            for (Element link : links) {
+              String nextUrl = link.absUrl("href");
+              if (nextUrl.isBlank()) {
+                continue;
+              }
+              try {
+                URI nextUri = new URI(nextUrl);
+                if (targetHost.equalsIgnoreCase(nextUri.getHost())) {
+                  crawl(nextUrl, depth + 1);
+                }
+              } catch (URISyntaxException e) {
+                logger.warn("Malformed URL encountered while crawling: {} ({})", nextUrl, e.getMessage());
+              }
             }
-          } catch (URISyntaxException e) {
-            logger.warn("Malformed URL encountered while crawling: {} ({})", nextUrl, e.getMessage());
           }
         }
       }
@@ -133,28 +161,40 @@ public class WebSecurityScanner {
   }
 
   private void checkSensitiveInfo(String url) {
-    Map<String, Pattern> sensitivePatterns = Map.ofEntries(
-        Map.entry("email", Pattern.compile("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}")),
-        Map.entry("phone", Pattern.compile("\\b\\d{3}[-.]?\\d{3}[-.]?\\d{4}\\b")),
-        Map.entry("ssn", Pattern.compile("\\b\\d{3}-\\d{2}-\\d{4}\\b")),
-        Map.entry("api_key",
-            Pattern.compile("api[_-]?key[_-]?(['\"`])([a-zA-Z0-9]{32,45})\\1", Pattern.CASE_INSENSITIVE)));
+    Map<String, Pattern> sensitivePatterns = new HashMap<>();
+    
+    for (Map.Entry<String, String> entry : config.sensitivePatterns().entrySet()) {
+      try {
+        Pattern pattern = Pattern.compile(entry.getValue(), Pattern.CASE_INSENSITIVE);
+        sensitivePatterns.put(entry.getKey(), pattern);
+      } catch (Exception e) {
+        logger.warn("Invalid regex pattern for {}: {}", entry.getKey(), entry.getValue());
+      }
+    }
 
     try {
       Request request = new Request.Builder().url(url).build();
-      Response response = httpClient.newCall(request).execute();
-      String responseText = response.body().string();
+      try (Response response = httpClient.newCall(request).execute()) {
+        if (!response.isSuccessful()) {
+          return;
+        }
+        
+        String responseText = safeReadResponse(response);
+        if (responseText.isEmpty()) {
+          return;
+        }
 
-      for (Map.Entry<String, Pattern> entry : sensitivePatterns.entrySet()) {
-        Pattern pattern = entry.getValue();
-        Matcher matcher = pattern.matcher(responseText);
+        for (Map.Entry<String, Pattern> entry : sensitivePatterns.entrySet()) {
+          Pattern pattern = entry.getValue();
+          Matcher matcher = pattern.matcher(responseText);
 
-        while (matcher.find()) {
-          reportVulnerability(new Vulnerability(
-              "Sensitive Information Exposure",
-              url,
-              entry.getKey(),
-              entry.getValue().pattern()));
+          while (matcher.find()) {
+            reportVulnerability(new Vulnerability(
+                "Sensitive Information Exposure",
+                url,
+                entry.getKey(),
+                entry.getValue().pattern()));
+          }
         }
       }
     } catch (Exception e) {
@@ -163,11 +203,7 @@ public class WebSecurityScanner {
   }
 
   private void checkXss(String url) {
-    String[] xssPayloads = {
-        "<script>alert('XSS')</script>",
-        "<img src=x onerror=alert('XSS')>",
-        "javascript:alert('XSS')"
-    };
+    List<String> xssPayloads = config.xssPayloads();
 
     for (String payload : xssPayloads) {
       try {
@@ -175,24 +211,30 @@ public class WebSecurityScanner {
         String query = uri.getQuery();
 
         if (query != null) {
-          String[] params = query.split("&");
-          for (String param : params) {
-            String[] keyValue = param.split("=");
-            if (keyValue.length == 2) {
-              String encodedPayload = java.net.URLEncoder.encode(payload, "UTF-8");
-              String testUrl = url.replace(param, keyValue[0] + "=" + encodedPayload);
+          Map<String, String> params = parseParameters(query);
+          
+          for (Map.Entry<String, String> param : params.entrySet()) {
+            try {
+              String encodedPayload = java.net.URLEncoder.encode(payload, StandardCharsets.UTF_8);
+              String testUrl = buildTestUrl(url, param.getKey(), encodedPayload);
 
               Request request = new Request.Builder().url(testUrl).build();
-              Response response = httpClient.newCall(request).execute();
-              String responseText = response.body().string();
-
-              if (responseText.contains(payload)) {
-                reportVulnerability(new Vulnerability(
-                    "Cross-Site Scripting (XSS)",
-                    url,
-                    keyValue[0],
-                    payload));
+              try (Response response = httpClient.newCall(request).execute()) {
+                if (!response.isSuccessful()) {
+                  continue;
+                }
+                
+                String responseText = safeReadResponse(response);
+                if (responseText.contains(payload)) {
+                  reportVulnerability(new Vulnerability(
+                      "Cross-Site Scripting (XSS)",
+                      url,
+                      param.getKey(),
+                      payload));
+                }
               }
+            } catch (Exception e) {
+              logger.debug("Error testing XSS payload on parameter {}: {}", param.getKey(), e.getMessage());
             }
           }
         }
@@ -203,33 +245,36 @@ public class WebSecurityScanner {
   }
 
   private void checkSqlInjection(String url) {
-    String[] sqlPayloads = { "'", "1' OR '1'='1", "' OR 1=1--", "' UNION SELECT NULL--" };
+    List<String> sqlPayloads = config.sqlPayloads();
 
     for (String payload : sqlPayloads) {
       try {
         String query = new URI(url).getQuery();
 
         if (query != null) {
-          String[] params = query.split("&");
-          for (String param : params) {
-            String[] keyValue = param.split("=");
-            if (keyValue.length == 2) {
-              String testUrl = url.replace(param, keyValue[0] + "=" + payload);
+          Map<String, String> params = parseParameters(query);
+          
+          for (Map.Entry<String, String> param : params.entrySet()) {
+            try {
+              String testUrl = buildTestUrl(url, param.getKey(), payload);
 
               Request request = new Request.Builder().url(testUrl).build();
-              Response response = httpClient.newCall(request).execute();
-              String responseText = response.body().string().toLowerCase();
-
-              if (responseText.contains("sql") || responseText.contains("mysql") ||
-                  responseText.contains("sqlite") || responseText.contains("postgresql") ||
-                  responseText.contains("oracle")) {
-
-                reportVulnerability(new Vulnerability(
-                    "SQL Injection",
-                    url,
-                    keyValue[0],
-                    payload));
+              try (Response response = httpClient.newCall(request).execute()) {
+                if (!response.isSuccessful()) {
+                  continue;
+                }
+                
+                String responseText = safeReadResponse(response).toLowerCase();
+                if (containsSqlErrorIndicators(responseText)) {
+                  reportVulnerability(new Vulnerability(
+                      "SQL Injection",
+                      url,
+                      param.getKey(),
+                      payload));
+                }
               }
+            } catch (Exception e) {
+              logger.debug("Error testing SQL payload on parameter {}: {}", param.getKey(), e.getMessage());
             }
           }
         }
@@ -247,5 +292,117 @@ public class WebSecurityScanner {
 
   public int getVisitedUrlsCount() {
     return visitedUrls.size();
+  }
+
+
+  private boolean isValidUrl(String url) {
+    if (url == null || url.trim().isEmpty()) {
+      return false;
+    }
+    
+    try {
+      URI uri = new URI(url.trim());
+      String scheme = uri.getScheme();
+      String host = uri.getHost();
+      
+      return host != null && 
+             ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme));
+    } catch (URISyntaxException e) {
+      return false;
+    }
+  }
+
+  private String safeReadResponse(Response response) throws IOException {
+    if (response.body() == null) {
+      return "";
+    }
+    
+    String contentType = response.header("Content-Type", "");
+    if (!isSafeContentType(contentType)) {
+      logger.debug("Skipping non-text content type: {}", contentType);
+      return "";
+    }
+    
+    long contentLength = response.body().contentLength();
+    if (contentLength > MAX_RESPONSE_SIZE) {
+      throw new IOException("Response too large: " + contentLength + " bytes");
+    }
+    
+    return response.body().string();
+  }
+
+  private boolean isSafeContentType(String contentType) {
+    if (contentType == null || contentType.isEmpty()) {
+      return true; // Default to safe if unknown
+    }
+    
+    String lowerContentType = contentType.toLowerCase();
+    return lowerContentType.contains("text/") || 
+           lowerContentType.contains("application/json") ||
+           lowerContentType.contains("application/xml") ||
+           lowerContentType.contains("application/xhtml+xml");
+  }
+
+  private Map<String, String> parseParameters(String query) {
+    Map<String, String> params = new HashMap<>();
+    if (query == null || query.isEmpty()) {
+      return params;
+    }
+    
+    for (String param : query.split("&")) {
+      if (param.isEmpty()) continue;
+      
+      String[] parts = param.split("=", 2);
+      String key = parts[0];
+      String value = parts.length > 1 ? parts[1] : "";
+      
+      if (!key.isEmpty()) {
+        params.put(key, value);
+      }
+    }
+    return params;
+  }
+
+  private String buildTestUrl(String originalUrl, String paramKey, String newValue) {
+    try {
+      URI uri = new URI(originalUrl);
+      String query = uri.getQuery();
+      
+      if (query == null) {
+        return originalUrl;
+      }
+      
+      Map<String, String> params = parseParameters(query);
+      params.put(paramKey, newValue);
+      
+      StringBuilder newQuery = new StringBuilder();
+      for (Map.Entry<String, String> entry : params.entrySet()) {
+        if (newQuery.length() > 0) {
+          newQuery.append("&");
+        }
+        newQuery.append(entry.getKey()).append("=").append(entry.getValue());
+      }
+      
+      return new URI(uri.getScheme(), uri.getAuthority(), uri.getPath(), 
+                     newQuery.toString(), uri.getFragment()).toString();
+    } catch (URISyntaxException e) {
+      logger.warn("Error building test URL: {}", e.getMessage());
+      return originalUrl;
+    }
+  }
+
+  private boolean containsSqlErrorIndicators(String responseText) {
+    String[] sqlErrorIndicators = {
+        "sql", "mysql", "sqlite", "postgresql", "oracle", "mariadb",
+        "syntax error", "mysql_fetch", "mysql_query", "warning:", "error:",
+        "odbc", "microsoft access", "jdbc", "ora-", "sql server"
+    };
+    
+    for (String indicator : sqlErrorIndicators) {
+      if (responseText.contains(indicator)) {
+        return true;
+      }
+    }
+    return false;
   }
 }

