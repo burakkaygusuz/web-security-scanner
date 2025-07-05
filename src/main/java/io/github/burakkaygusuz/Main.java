@@ -90,7 +90,6 @@ public class Main {
             payloadWidth = Math.max(payloadWidth, vul.payload() != null ? vul.payload().length() : 0);
         }
 
-        // Add padding
         typeWidth += 2;
         urlWidth += 2;
         parameterWidth += 2;
