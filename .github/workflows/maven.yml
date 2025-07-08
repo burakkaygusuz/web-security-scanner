@@ -32,6 +32,9 @@ jobs:
       - name: Compile project
         run: mvn -B compile
       
+      - name: Check code formatting
+        run: mvn -B com.spotify.fmt:fmt-maven-plugin:check
+      
       - name: Run tests
         run: mvn -B test
       

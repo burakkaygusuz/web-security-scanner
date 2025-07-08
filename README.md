@@ -47,3 +47,60 @@ mvn exec:java -Dexec.mainClass="io.github.burakkaygusuz.Main" -Dexec.args="http:
 ```
 
 The scanner will output detected vulnerabilities directly to the console.
+
+## Code Formatting
+
+This project uses Google Java Format to maintain consistent code style.
+
+### Automatic Formatting
+
+Code is automatically formatted during the Maven build process. The formatter runs in the `process-sources` phase.
+
+### Manual Formatting
+
+To manually format all Java files:
+
+```bash
+mvn com.spotify.fmt:fmt-maven-plugin:format
+```
+
+### Check Formatting
+
+To check if all files are properly formatted without making changes:
+
+```bash
+mvn com.spotify.fmt:fmt-maven-plugin:check
+```
+
+This command will fail if any files are not properly formatted, which is useful for CI/CD pipelines.
+
+### IDE Integration
+
+For local development, it's recommended to install the Google Java Format plugin for your IDE:
+
+- **IntelliJ IDEA**: Install the "google-java-format" plugin
+- **Eclipse**: Install the Google Java Format plugin
+- **VS Code**: Install the "Language Support for Java(TM) by Red Hat" extension with Google Java Format support
+
+### Git Hooks (Recommended)
+
+For the best development experience, install Git hooks that automatically handle code formatting:
+
+```bash
+./setup-git-hooks.sh
+```
+
+This installs two hooks:
+- **pre-commit**: Validates formatting before commits
+- **pre-push**: Automatically formats and commits code before pushes
+
+**How it works:**
+1. When you run `git push`, the pre-push hook automatically runs
+2. If your code is not properly formatted, it will be automatically formatted
+3. The formatted code is automatically committed with message "chore: auto-format Java code with Google Java Format"
+4. The push continues with the newly formatted and committed code
+5. No manual intervention required!
+
+### CI/CD
+
+The GitHub Actions workflow automatically checks code formatting before running tests. If code is not properly formatted, the build will fail.

@@ -32,6 +32,7 @@
     <maven-surefire-plugin.version>3.5.3</maven-surefire-plugin.version>
     <exec-maven-plugin.version>3.5.1</exec-maven-plugin.version>
     <maven-assembly-plugin.version>3.7.1</maven-assembly-plugin.version>
+    <fmt-maven-plugin.version>2.24</fmt-maven-plugin.version>
   </properties>
 
   <dependencyManagement>
@@ -194,6 +195,18 @@
             </execution>
           </executions>
         </plugin>
+        <plugin>
+          <groupId>com.spotify.fmt</groupId>
+          <artifactId>fmt-maven-plugin</artifactId>
+          <version>${fmt-maven-plugin.version}</version>
+          <executions>
+            <execution>
+              <goals>
+                <goal>format</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
       </plugins>
     </pluginManagement>
     
@@ -213,6 +226,10 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-assembly-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>com.spotify.fmt</groupId>
+        <artifactId>fmt-maven-plugin</artifactId>
       </plugin>
     </plugins>
   </build>

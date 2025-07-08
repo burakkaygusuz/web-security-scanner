@@ -1,122 +1,134 @@
 package io.github.burakkaygusuz;
 
+import java.io.IOException;
+import java.util.List;
 import org.jline.reader.*;
 import org.jline.terminal.*;
 import org.slf4j.*;
 
-import java.io.IOException;
-import java.util.List;
-
 public class Main {
-    private static final Logger logger = LoggerFactory.getLogger(Main.class);
+  private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
-    public static void main(String[] args) {
-        String targetUrl = null;
+  public static void main(String[] args) {
+    String targetUrl = null;
 
-        if (args.length == 1) {
-            targetUrl = args[0];
-        }
-
-        if (targetUrl == null || targetUrl.trim().isEmpty()) {
-            try (Terminal terminal = TerminalBuilder.builder().build()) {
-                LineReader reader = LineReaderBuilder.builder()
-                        .terminal(terminal)
-                        .build();
-
-                while (true) {
-                    try {
-                        String line = reader.readLine("Enter target URL (or 'exit' to quit): ");
-                        if (line.equalsIgnoreCase("exit")) {
-                            return;
-                        }
-
-                        if (line.trim().isEmpty()) {
-                            logger.info("URL cannot be empty. Please try again.");
-                            continue;
-                        }
-                        targetUrl = line.trim();
-                        break; 
-                    } catch (UserInterruptException | EndOfFileException e) {
-                        logger.info("User interrupted or reached end of file. Exiting...");
-                        return;
-                    }
-                }
-            } catch (IOException e) {
-                logger.error("Error initializing terminal: {}", e.getMessage());
-                System.exit(1);
-            }
-        }
-
-        if (targetUrl == null || targetUrl.trim().isEmpty()) {
-            logger.info("No target URL provided. Exiting.");
-            System.exit(0);
-        }
-
-        WebSecurityScanner scanner = new WebSecurityScanner(targetUrl);
-        try {
-            List<Vulnerability> vulnerabilities = scanner.scan();
-
-            if (!vulnerabilities.isEmpty()) {
-                printVulnerabilitiesTable(vulnerabilities);
-            }
-
-            logger.info("\nScan Complete! Total URLs scanned: {}, Vulnerabilities found: {}", 
-                scanner.getVisitedUrlsCount(), vulnerabilities.size());
-        } finally {
-            scanner.close();
-        }
+    if (args.length == 1) {
+      targetUrl = args[0];
     }
 
-    private static void printVulnerabilitiesTable(List<Vulnerability> vulnerabilities) {
-        // ANSI Color Codes
-        final String RESET = "\033[0m";
-        final String RED = "\033[0;31m";    // SQL Injection
-        final String YELLOW = "\033[0;33m"; // XSS
-        final String BLUE = "\033[0;34m";   // Sensitive Information Exposure
-        final String CYAN = "\033[0;36m";   // Table headers
+    if (targetUrl == null || targetUrl.trim().isEmpty()) {
+      try (Terminal terminal = TerminalBuilder.builder().build()) {
+        LineReader reader = LineReaderBuilder.builder().terminal(terminal).build();
 
-        int typeWidth = "Type".length();
-        int urlWidth = "URL".length();
-        int parameterWidth = "Parameter".length();
-        int payloadWidth = "Payload".length();
+        while (true) {
+          try {
+            String line = reader.readLine("Enter target URL (or 'exit' to quit): ");
+            if (line.equalsIgnoreCase("exit")) {
+              return;
+            }
 
-        for (Vulnerability vul : vulnerabilities) {
-            typeWidth = Math.max(typeWidth, vul.type().length());
-            urlWidth = Math.max(urlWidth, vul.url().length());
-            parameterWidth = Math.max(parameterWidth, vul.parameter() != null ? vul.parameter().length() : 0);
-            payloadWidth = Math.max(payloadWidth, vul.payload() != null ? vul.payload().length() : 0);
+            if (line.trim().isEmpty()) {
+              logger.info("URL cannot be empty. Please try again.");
+              continue;
+            }
+            targetUrl = line.trim();
+            break;
+          } catch (UserInterruptException | EndOfFileException e) {
+            logger.info("User interrupted or reached end of file. Exiting...");
+            return;
+          }
         }
-
-        typeWidth += 2;
-        urlWidth += 2;
-        parameterWidth += 2;
-        payloadWidth += 2;
-
-        String format = "| %-" + typeWidth + "s | %-" + urlWidth + "s | %-" + parameterWidth + "s | %-" + payloadWidth + "s |%n";
-        String separator = "+%s+%s+%s+%s+".formatted(
-            "-".repeat(typeWidth + 2),
-            "-".repeat(urlWidth + 2), 
-            "-".repeat(parameterWidth + 2),
-            "-".repeat(payloadWidth + 2)
-        );
-
-        System.out.println(separator);
-        System.out.printf(CYAN + format + RESET, "Type", "URL", "Parameter", "Payload");
-        System.out.println(separator);
-
-        for (Vulnerability vul : vulnerabilities) {
-            String color = switch (vul.type()) {
-                case "SQL Injection" -> RED;
-                case "Cross-Site Scripting (XSS)" -> YELLOW;
-                case "Sensitive Information Exposure" -> BLUE;
-                default -> RESET;
-            };
-            System.out.printf(color + format + RESET,
-                    vul.type(),
-                    vul.url(),
-                    vul.parameter() != null ? vul.parameter() : "N/A",
-                    vul.payload() != null ? vul.payload() : "N/A");
-        }
-        System.out.println(separator);
+      } catch (IOException e) {
+        logger.error("Error initializing terminal: {}", e.getMessage());
+        System.exit(1);
+      }
     }
+
+    if (targetUrl == null || targetUrl.trim().isEmpty()) {
+      logger.info("No target URL provided. Exiting.");
+      System.exit(0);
+    }
+
+    WebSecurityScanner scanner = new WebSecurityScanner(targetUrl);
+    try {
+      List<Vulnerability> vulnerabilities = scanner.scan();
+
+      if (!vulnerabilities.isEmpty()) {
+        printVulnerabilitiesTable(vulnerabilities);
+      }
+
+      logger.info(
+          "\nScan Complete! Total URLs scanned: {}, Vulnerabilities found: {}",
+          scanner.getVisitedUrlsCount(),
+          vulnerabilities.size());
+    } finally {
+      scanner.close();
+    }
+  }
+
+  private static void printVulnerabilitiesTable(List<Vulnerability> vulnerabilities) {
+    // ANSI Color Codes
+    final String RESET = "\033[0m";
+    final String RED = "\033[0;31m"; // SQL Injection
+    final String YELLOW = "\033[0;33m"; // XSS
+    final String BLUE = "\033[0;34m"; // Sensitive Information Exposure
+    final String CYAN = "\033[0;36m"; // Table headers
+
+    int typeWidth = "Type".length();
+    int urlWidth = "URL".length();
+    int parameterWidth = "Parameter".length();
+    int payloadWidth = "Payload".length();
+
+    for (Vulnerability vul : vulnerabilities) {
+      typeWidth = Math.max(typeWidth, vul.type().length());
+      urlWidth = Math.max(urlWidth, vul.url().length());
+      parameterWidth =
+          Math.max(parameterWidth, vul.parameter() != null ? vul.parameter().length() : 0);
+      payloadWidth = Math.max(payloadWidth, vul.payload() != null ? vul.payload().length() : 0);
+    }
+
+    typeWidth += 2;
+    urlWidth += 2;
+    parameterWidth += 2;
+    payloadWidth += 2;
+
+    String format =
+        "| %-"
+            + typeWidth
+            + "s | %-"
+            + urlWidth
+            + "s | %-"
+            + parameterWidth
+            + "s | %-"
+            + payloadWidth
+            + "s |%n";
+    String separator =
+        "+%s+%s+%s+%s+"
+            .formatted(
+                "-".repeat(typeWidth + 2),
+                "-".repeat(urlWidth + 2),
+                "-".repeat(parameterWidth + 2),
+                "-".repeat(payloadWidth + 2));
+
+    System.out.println(separator);
+    System.out.printf(CYAN + format + RESET, "Type", "URL", "Parameter", "Payload");
+    System.out.println(separator);
+
+    for (Vulnerability vul : vulnerabilities) {
+      String color =
+          switch (vul.type()) {
+            case "SQL Injection" -> RED;
+            case "Cross-Site Scripting (XSS)" -> YELLOW;
+            case "Sensitive Information Exposure" -> BLUE;
+            default -> RESET;
+          };
+      System.out.printf(
+          color + format + RESET,
+          vul.type(),
+          vul.url(),
+          vul.parameter() != null ? vul.parameter() : "N/A",
+          vul.payload() != null ? vul.payload() : "N/A");
+    }
+    System.out.println(separator);
+  }
 }
