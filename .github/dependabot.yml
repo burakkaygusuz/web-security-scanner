@@ -12,6 +12,6 @@ updates:
       - "dependencies"
       - "maven"
     commit-message:
-      prefix: "chore(pom)"
+      prefix: "chore"
       include: "scope"
     rebase-strategy: "auto"
