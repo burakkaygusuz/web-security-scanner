@@ -26,5 +26,27 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
+      - name: Validate Maven configuration
+        run: mvn validate
+      
+      - name: Compile project
+        run: mvn -B compile
+      
+      - name: Run tests
+        run: mvn -B test
+      
       - name: Build with Maven
         run: mvn -B package --file pom.xml
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: target/surefire-reports/
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: jar-artifact
+          path: target/*.jar
