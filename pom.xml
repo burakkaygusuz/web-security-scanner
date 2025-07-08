@@ -23,6 +23,7 @@
     <jline.version>3.30.4</jline.version>
     <slf4j.version>2.1.0-alpha1</slf4j.version>
     <junit.version>6.0.0-M1</junit.version>
+    <assertj.version>4.0.0-M1</assertj.version>
     <jackson.version>2.18.2</jackson.version>
     <resilience4j.version>2.3.0</resilience4j.version>
     
@@ -74,6 +75,13 @@
         <groupId>org.junit.jupiter</groupId>
         <artifactId>junit-jupiter-engine</artifactId>
         <version>${junit.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.assertj</groupId>
+        <artifactId>assertj-core</artifactId>
+        <version>${assertj.version}</version>
+        <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>com.fasterxml.jackson.core</groupId>
@@ -121,6 +129,11 @@
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-engine</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>
