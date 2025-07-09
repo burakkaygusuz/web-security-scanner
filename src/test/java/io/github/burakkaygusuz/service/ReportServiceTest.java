@@ -2,22 +2,26 @@ package io.github.burakkaygusuz.service;
 
 import static org.assertj.core.api.Assertions.*;
 
-import io.github.burakkaygusuz.Vulnerability;
+import io.github.burakkaygusuz.model.Vulnerability;
 import java.util.List;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 
+@SpringBootTest
 class ReportServiceTest {
 
-  private ReportService reportService;
+  @Autowired private ReportService reportService;
+
   private Vulnerability sqlVulnerability;
   private Vulnerability xssVulnerability;
   private Vulnerability sensitiveInfoVulnerability;
 
   @BeforeEach
   void setUp() {
-    reportService = new ReportService();
+    reportService.clear(); // Clear any previous vulnerabilities
 
     sqlVulnerability =
         new Vulnerability("SQL Injection", "https://example.com/search?id=123", "id", "' OR 1=1--");
@@ -73,7 +77,7 @@ class ReportServiceTest {
 
     assertThat(reportService.getVulnerabilitiesBySeverity())
         .hasSize(3)
-        .extracting(Vulnerability::type)
+        .extracting(Vulnerability::getTypeName)
         .containsExactly(
             "SQL Injection", // CRITICAL first
             "Cross-Site Scripting (XSS)", // HIGH second
@@ -194,7 +198,7 @@ class ReportServiceTest {
 
     assertThat(reportService.getVulnerabilitiesBySeverity())
         .hasSize(2)
-        .extracting(Vulnerability::type)
-        .containsExactly("Sensitive Information Exposure", "Unknown Type");
+        .extracting(Vulnerability::getTypeName)
+        .containsExactly("Sensitive Information Exposure", "Unknown");
   }
 }

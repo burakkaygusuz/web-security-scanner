@@ -11,6 +11,50 @@ public class UrlUtils {
 
   private static final Logger logger = LoggerFactory.getLogger(UrlUtils.class);
 
+  /**
+   * Builds form data string for an application/x-www-form-urlencoded request.
+   *
+   * @param inputs the map of form inputs
+   * @param token optional CSRF token value
+   * @param tokenName name of the CSRF token field
+   * @return URL-encoded form data string
+   */
+  public static String buildFormData(Map<String, String> inputs, String token, String tokenName) {
+    StringBuilder formDataBuilder = new StringBuilder();
+
+    inputs.forEach(
+        (key, value) -> {
+          try {
+            if (formDataBuilder.length() > 0) {
+              formDataBuilder.append("&");
+            }
+
+            formDataBuilder
+                .append(java.net.URLEncoder.encode(key, java.nio.charset.StandardCharsets.UTF_8))
+                .append("=")
+                .append(java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8));
+          } catch (Exception e) {
+            logger.warn("Error encoding form data: {}", e.getMessage());
+          }
+        });
+
+    if (token != null && !inputs.containsKey(tokenName)) {
+      try {
+        if (formDataBuilder.length() > 0) {
+          formDataBuilder.append('&');
+        }
+        formDataBuilder
+            .append(java.net.URLEncoder.encode(tokenName, java.nio.charset.StandardCharsets.UTF_8))
+            .append('=')
+            .append(java.net.URLEncoder.encode(token, java.nio.charset.StandardCharsets.UTF_8));
+      } catch (Exception e) {
+        logger.warn("Error encoding CSRF token: {}", e.getMessage());
+      }
+    }
+
+    return formDataBuilder.toString();
+  }
+
   public static Map<String, String> parseParameters(String query) {
     Map<String, String> params = new HashMap<>();
     if (query == null || query.isEmpty()) {

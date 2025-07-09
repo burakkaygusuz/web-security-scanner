@@ -1,11 +1,13 @@
 package io.github.burakkaygusuz.service;
 
-import io.github.burakkaygusuz.Vulnerability;
+import io.github.burakkaygusuz.model.Vulnerability;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.springframework.stereotype.Service;
 
+@Service
 public class ReportService {
 
   private final List<Vulnerability> vulnerabilities = new CopyOnWriteArrayList<>();

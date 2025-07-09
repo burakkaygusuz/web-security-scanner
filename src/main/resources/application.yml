@@ -1,0 +1,101 @@
+spring:
+  application:
+    name: web-security-scanner
+  
+  profiles:
+    active: dev
+  
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  
+  datasource:
+    url: jdbc:h2:mem:websecuritydb
+    driverClassName: org.h2.Driver
+    username: sa
+    password: password
+  
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+server:
+  port: 8080
+
+# Scanner Configuration
+scanner:
+  # CLI mode settings
+  cli:
+    enabled: true
+  # SQL injection payloads (can be overridden)
+  sqlPayloads:
+    - "'"
+    - "1' OR '1'='1"
+    - "' OR 1=1--"
+    - "' UNION SELECT NULL--"
+    - "'; DROP TABLE users--"
+    - "' AND (SELECT COUNT(*) FROM sysobjects)>0--"
+  
+  # XSS payloads (can be overridden)
+  xssPayloads:
+    - "<script>alert('XSS')</script>"
+    - "<img src=x onerror=alert('XSS')>"
+    - "javascript:alert('XSS')"
+    - "<svg onload=alert('XSS')>"
+    - "'><script>alert('XSS')</script>"
+    - "\"<script>alert('XSS')</script>"
+  
+  # Sensitive data patterns
+  sensitivePatterns:
+    email: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+    phone: "\\b\\d{3}[-.]?\\d{3}[-.]?\\d{4}\\b"
+    ssn: "\\b\\d{3}-\\d{2}-\\d{4}\\b"
+    api_key: "api[_-]?key[_-]?(['\"`])([a-zA-Z0-9]{32,45})\\1"
+    credit_card: "\\b(?:\\d{4}[-\\s]?){3}\\d{4}\\b"
+  
+  # Scan settings
+  scanSettings:
+    maxDepth: 3
+    timeoutSeconds: 30
+    rateLimitRequestsPerSecond: 3
+    rateLimitTimeoutSeconds: 30
+  
+  # CSRF settings
+  csrfSettings:
+    testForms: true
+    checkSameSiteCookies: true
+    tokenEntropyCheck: true
+    simulateCrossOrigin: false
+    commonTokenNames:
+      - "csrf_token"
+      - "csrftoken"
+      - "_token"
+      - "authenticity_token"
+      - "csrf"
+      - "_csrf"
+      - "csrfmiddlewaretoken"
+      - "csrfToken"
+      - "__RequestVerificationToken"
+      - "anti-forgery-token"
+    minimumTokenLength: 16
+
+logging:
+  level:
+    io.github.burakkaygusuz: INFO
+    org.springframework: WARN
+    org.hibernate: WARN

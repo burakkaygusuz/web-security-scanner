@@ -1,15 +1,36 @@
-package io.github.burakkaygusuz;
+package io.github.burakkaygusuz.cli;
 
+import io.github.burakkaygusuz.WebSecurityScanner;
+import io.github.burakkaygusuz.model.Vulnerability;
 import java.io.IOException;
 import java.util.List;
 import org.jline.reader.*;
 import org.jline.terminal.*;
 import org.slf4j.*;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
 
-public class Main {
-  private static final Logger logger = LoggerFactory.getLogger(Main.class);
+/**
+ * Spring Boot CommandLineRunner that preserves the original CLI functionality. Only runs when
+ * 'scanner.cli.enabled=true' property is set.
+ */
+@Component
+@ConditionalOnProperty(name = "scanner.cli.enabled", havingValue = "true", matchIfMissing = false)
+public class ScannerCommandLineRunner implements CommandLineRunner {
 
-  public static void main(String[] args) {
+  private static final Logger logger = LoggerFactory.getLogger(ScannerCommandLineRunner.class);
+
+  private final WebSecurityScanner webSecurityScanner;
+
+  public ScannerCommandLineRunner(WebSecurityScanner webSecurityScanner) {
+    this.webSecurityScanner = webSecurityScanner;
+  }
+
+  @Override
+  public void run(String... args) throws Exception {
+    logger.info("Starting CLI Scanner...");
+
     String targetUrl = null;
 
     if (args.length == 1) {
@@ -49,9 +70,9 @@ public class Main {
       System.exit(0);
     }
 
-    WebSecurityScanner scanner = new WebSecurityScanner(targetUrl);
+    webSecurityScanner.setTargetUrl(targetUrl);
     try {
-      List<Vulnerability> vulnerabilities = scanner.scan();
+      List<Vulnerability> vulnerabilities = webSecurityScanner.scan();
 
       if (!vulnerabilities.isEmpty()) {
         printVulnerabilitiesTable(vulnerabilities);
@@ -59,10 +80,10 @@ public class Main {
 
       logger.info(
           "\nScan Complete! Total URLs scanned: {}, Vulnerabilities found: {}",
-          scanner.getVisitedUrlsCount(),
+          webSecurityScanner.getVisitedUrlsCount(),
           vulnerabilities.size());
     } finally {
-      scanner.close();
+      webSecurityScanner.close();
     }
   }
 
@@ -73,6 +94,7 @@ public class Main {
     final String YELLOW = "\033[0;33m"; // XSS
     final String BLUE = "\033[0;34m"; // Sensitive Information Exposure
     final String CYAN = "\033[0;36m"; // Table headers
+    final String MAGENTA = "\033[0;35m"; // CSRF-related vulnerabilities
 
     int typeWidth = "Type".length();
     int urlWidth = "URL".length();
@@ -80,7 +102,7 @@ public class Main {
     int payloadWidth = "Payload".length();
 
     for (Vulnerability vul : vulnerabilities) {
-      typeWidth = Math.max(typeWidth, vul.type().length());
+      typeWidth = Math.max(typeWidth, vul.getTypeName().length());
       urlWidth = Math.max(urlWidth, vul.url().length());
       parameterWidth =
           Math.max(parameterWidth, vul.parameter() != null ? vul.parameter().length() : 0);
@@ -117,14 +139,21 @@ public class Main {
     for (Vulnerability vul : vulnerabilities) {
       String color =
           switch (vul.type()) {
-            case "SQL Injection" -> RED;
-            case "Cross-Site Scripting (XSS)" -> YELLOW;
-            case "Sensitive Information Exposure" -> BLUE;
+            case SQL_INJECTION -> RED;
+            case CROSS_SITE_SCRIPTING -> YELLOW;
+            case SENSITIVE_INFO_EXPOSURE -> BLUE;
+            case NO_CSRF_TOKEN,
+                INVALID_CSRF_TOKEN,
+                REUSED_CSRF_TOKEN,
+                EXPIRED_CSRF_TOKEN,
+                WEAK_REFERER_VALIDATION,
+                MISSING_SAMESITE_COOKIE ->
+                MAGENTA;
             default -> RESET;
           };
       System.out.printf(
           color + format + RESET,
-          vul.type(),
+          vul.getTypeName(),
           vul.url(),
           vul.parameter() != null ? vul.parameter() : "N/A",
           vul.payload() != null ? vul.payload() : "N/A");

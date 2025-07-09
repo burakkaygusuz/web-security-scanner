@@ -33,5 +33,17 @@
   "scan_settings": {
     "max_depth": 3,
     "timeout_seconds": 30
+  },
+  "csrf_settings": {
+    "test_forms": true,
+    "check_samesite_cookies": true,
+    "token_entropy_check": true,
+    "simulate_cross_origin": false,
+    "common_token_names": [
+      "csrf_token", "csrftoken", "_token", "authenticity_token",
+      "csrf", "_csrf", "csrfmiddlewaretoken", "csrfToken",
+      "__RequestVerificationToken", "anti-forgery-token"
+    ],
+    "minimum_token_length": 16
   }
 }

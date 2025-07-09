@@ -4,29 +4,57 @@ import static org.assertj.core.api.Assertions.*;
 
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.TestPropertySource;
 
+@SpringBootTest
+@TestPropertySource(
+    properties = {
+      "scanner.sqlPayloads[0]='",
+      "scanner.sqlPayloads[1]=1' OR '1'='1",
+      "scanner.sqlPayloads[2]=' OR 1=1--",
+      "scanner.sqlPayloads[3]=' UNION SELECT NULL--",
+      "scanner.xssPayloads[0]=<script>alert('XSS')</script>",
+      "scanner.xssPayloads[1]=<img src=x onerror=alert('XSS')>",
+      "scanner.xssPayloads[2]=javascript:alert('XSS')",
+      "scanner.xssPayloads[3]=<svg onload=alert('XSS')>",
+      "scanner.sensitivePatterns.email=[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}",
+      "scanner.sensitivePatterns.phone=\\b\\d{3}[-.]?\\d{3}[-.]?\\d{4}\\b",
+      "scanner.sensitivePatterns.ssn=\\b\\d{3}-\\d{2}-\\d{4}\\b",
+      "scanner.sensitivePatterns.api_key=api[_-]?key[\\s]*[:=][\\s]*['\"]?[a-zA-Z0-9]+['\"]?",
+      "scanner.sensitivePatterns.credit_card=\\b\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}\\b",
+      "scanner.scanSettings.maxDepth=3",
+      "scanner.scanSettings.timeoutSeconds=30",
+      "scanner.csrfSettings.testForms=true",
+      "scanner.csrfSettings.checkSameSiteCookies=true",
+      "scanner.csrfSettings.minimumTokenLength=16"
+    })
 class ConfigLoaderTest {
+
+  @Autowired private ScannerConfig scannerConfig;
 
   @Test
   void testLoadDefaultConfig() {
-    ScannerConfig config = ConfigLoader.loadConfig();
+    ScannerConfig config = scannerConfig;
 
     SoftAssertions.assertSoftly(
         softly -> {
           softly.assertThat(config).isNotNull();
-          softly.assertThat(config.sqlPayloads()).isNotNull().isNotEmpty();
-          softly.assertThat(config.xssPayloads()).isNotNull().isNotEmpty();
-          softly.assertThat(config.sensitivePatterns()).isNotNull().isNotEmpty();
-          softly.assertThat(config.scanSettings()).isNotNull();
+          softly.assertThat(config.getSqlPayloads()).isNotNull().isNotEmpty();
+          softly.assertThat(config.getXssPayloads()).isNotNull().isNotEmpty();
+          softly.assertThat(config.getSensitivePatterns()).isNotNull().isNotEmpty();
+          softly.assertThat(config.getScanSettings()).isNotNull();
+          softly.assertThat(config.getCsrfSettings()).isNotNull();
         });
   }
 
   @Test
   void testDefaultSqlPayloads() {
-    ScannerConfig config = ConfigLoader.loadConfig();
+    ScannerConfig config = scannerConfig;
 
-    assertThat(config.sqlPayloads())
-        .contains("'")
+    assertThat(config.getSqlPayloads())
+        .contains("\'")
         .contains("1' OR '1'='1")
         .contains("' OR 1=1--")
         .contains("' UNION SELECT NULL--");
@@ -34,9 +62,9 @@ class ConfigLoaderTest {
 
   @Test
   void testDefaultXssPayloads() {
-    ScannerConfig config = ConfigLoader.loadConfig();
+    ScannerConfig config = scannerConfig;
 
-    assertThat(config.xssPayloads())
+    assertThat(config.getXssPayloads())
         .contains("<script>alert('XSS')</script>")
         .contains("<img src=x onerror=alert('XSS')>")
         .contains("javascript:alert('XSS')")
@@ -45,9 +73,9 @@ class ConfigLoaderTest {
 
   @Test
   void testDefaultSensitivePatterns() {
-    ScannerConfig config = ConfigLoader.loadConfig();
+    ScannerConfig config = scannerConfig;
 
-    assertThat(config.sensitivePatterns())
+    assertThat(config.getSensitivePatterns())
         .containsKeys("email", "phone", "ssn", "api_key", "credit_card")
         .containsEntry("email", "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}")
         .containsEntry("phone", "\\b\\d{3}[-.]?\\d{3}[-.]?\\d{4}\\b");
@@ -55,60 +83,40 @@ class ConfigLoaderTest {
 
   @Test
   void testDefaultScanSettings() {
-    ScannerConfig config = ConfigLoader.loadConfig();
+    ScannerConfig config = scannerConfig;
 
-    assertThat(config.scanSettings())
-        .extracting(ScanSettings::maxDepth, ScanSettings::timeoutSeconds)
+    assertThat(config.getScanSettings())
+        .extracting(ScanSettings::getMaxDepth, ScanSettings::getTimeoutSeconds)
         .containsExactly(3, 30);
   }
 
   @Test
-  void testConfigurationIsImmutable() {
-    ScannerConfig config = ConfigLoader.loadConfig();
+  void testDefaultCsrfSettings() {
+    ScannerConfig config = scannerConfig;
 
-    SoftAssertions.assertSoftly(
-        softly -> {
-          softly
-              .assertThatThrownBy(() -> config.sqlPayloads().add("new payload"))
-              .isInstanceOf(UnsupportedOperationException.class);
-          softly
-              .assertThatThrownBy(() -> config.xssPayloads().add("new payload"))
-              .isInstanceOf(UnsupportedOperationException.class);
-          softly
-              .assertThatThrownBy(() -> config.sensitivePatterns().put("new", "pattern"))
-              .isInstanceOf(UnsupportedOperationException.class);
-        });
-  }
-
-  @Test
-  void testMultipleCallsReturnConsistentConfig() {
-    ScannerConfig config1 = ConfigLoader.loadConfig();
-    ScannerConfig config2 = ConfigLoader.loadConfig();
-
-    SoftAssertions.assertSoftly(
-        softly -> {
-          softly.assertThat(config1.sqlPayloads()).isEqualTo(config2.sqlPayloads());
-          softly.assertThat(config1.xssPayloads()).isEqualTo(config2.xssPayloads());
-          softly.assertThat(config1.sensitivePatterns()).isEqualTo(config2.sensitivePatterns());
-          softly.assertThat(config1.scanSettings()).isEqualTo(config2.scanSettings());
-        });
+    assertThat(config.getCsrfSettings())
+        .extracting(
+            CsrfSettings::isTestForms,
+            CsrfSettings::isCheckSameSiteCookies,
+            CsrfSettings::getMinimumTokenLength)
+        .containsExactly(true, true, 16);
   }
 
   @Test
   void testPayloadsAreNotEmpty() {
-    ScannerConfig config = ConfigLoader.loadConfig();
+    ScannerConfig config = scannerConfig;
 
     SoftAssertions.assertSoftly(
         softly -> {
           config
-              .sqlPayloads()
+              .getSqlPayloads()
               .forEach(
                   payload -> {
                     softly.assertThat(payload).isNotNull().isNotEmpty();
                   });
 
           config
-              .xssPayloads()
+              .getXssPayloads()
               .forEach(
                   payload -> {
                     softly.assertThat(payload).isNotNull().isNotEmpty();
@@ -118,10 +126,10 @@ class ConfigLoaderTest {
 
   @Test
   void testSensitivePatternsAreValid() {
-    ScannerConfig config = ConfigLoader.loadConfig();
+    ScannerConfig config = scannerConfig;
 
     config
-        .sensitivePatterns()
+        .getSensitivePatterns()
         .forEach(
             (key, pattern) -> {
               SoftAssertions.assertSoftly(
@@ -139,11 +147,11 @@ class ConfigLoaderTest {
 
   @Test
   void testDefaultConfigContainsExpectedPayloadCount() {
-    ScannerConfig config = ConfigLoader.loadConfig();
+    ScannerConfig config = scannerConfig;
 
     // Check actual sizes since config might load from external file
-    assertThat(config.sqlPayloads()).isNotEmpty();
-    assertThat(config.xssPayloads()).isNotEmpty();
-    assertThat(config.sensitivePatterns()).isNotEmpty();
+    assertThat(config.getSqlPayloads()).isNotEmpty();
+    assertThat(config.getXssPayloads()).isNotEmpty();
+    assertThat(config.getSensitivePatterns()).isNotEmpty();
   }
 }

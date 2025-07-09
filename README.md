@@ -12,6 +12,7 @@ This is a Java-based web security scanner designed to identify common web vulner
 ## Technologies Used
 
 - **Java**: Core programming language.
+- **Spring Boot**: Application framework for rapid development, configuration, and dependency injection.
 - **Maven**: Project management and build automation tool.
 - **OkHttp**: For making HTTP requests.
 - **JSoup**: For parsing and manipulating HTML.
@@ -28,6 +29,8 @@ mvn clean install
 
 ## How to Run
 
+**Important:** The scanner CLI is disabled by default for flexibility. To run the scanner from the command line, you must enable it by passing `-Dscanner.cli.enabled=true`.
+
 You can run the scanner by providing a target URL as a command-line argument.
 
 **Example Usage:**
@@ -35,7 +38,13 @@ You can run the scanner by providing a target URL as a command-line argument.
 To scan a target website (e.g., `http://example.com`):
 
 ```bash
-mvn exec:java -Dexec.mainClass="io.github.burakkaygusuz.Main" -Dexec.args="http://example.com"
+mvn spring-boot:run -Dspring-boot.run.arguments="http://example.com" -Dscanner.cli.enabled=true
+```
+
+Or, after building the JAR:
+
+```bash
+java -jar target/web-security-scanner-<version>.jar http://example.com --scanner.cli.enabled=true
 ```
 
 **Testing with a Vulnerable Website:**
@@ -43,10 +52,21 @@ mvn exec:java -Dexec.mainClass="io.github.burakkaygusuz.Main" -Dexec.args="http:
 For testing purposes, you can use a known vulnerable website like `http://testphp.vulnweb.com/`. This will demonstrate the scanner's ability to detect various vulnerabilities.
 
 ```bash
-mvn exec:java -Dexec.mainClass="io.github.burakkaygusuz.Main" -Dexec.args="http://testphp.vulnweb.com/"
+mvn spring-boot:run -Dspring-boot.run.arguments="http://testphp.vulnweb.com" -Dscanner.cli.enabled=true
+```
+
+or
+
+```bash
+java -jar target/web-security-scanner-<version>.jar http://testphp.vulnweb.com --scanner.cli.enabled=true
 ```
 
 The scanner will output detected vulnerabilities directly to the console.
+
+## Spring Boot Features
+
+- **Externalized Configuration**: Uses Spring Boot's configuration properties for flexible setup (see `application.yml` or `application.properties`).
+- **Dependency Injection**: Leverages Spring's DI for modularity and testability.
 
 ## Code Formatting
 
@@ -91,10 +111,12 @@ For the best development experience, install Git hooks that automatically handle
 ```
 
 This installs two hooks:
+
 - **pre-commit**: Validates formatting before commits
 - **pre-push**: Automatically formats and commits code before pushes
 
 **How it works:**
+
 1. When you run `git push`, the pre-push hook automatically runs
 2. If your code is not properly formatted, it will be automatically formatted
 3. The formatted code is automatically committed with message "chore: auto-format Java code with Google Java Format"

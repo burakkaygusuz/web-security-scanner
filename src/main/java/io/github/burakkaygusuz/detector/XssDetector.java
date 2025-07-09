@@ -1,7 +1,8 @@
 package io.github.burakkaygusuz.detector;
 
-import io.github.burakkaygusuz.Vulnerability;
 import io.github.burakkaygusuz.config.ScannerConfig;
+import io.github.burakkaygusuz.model.Vulnerability;
+import io.github.burakkaygusuz.model.VulnerabilityType;
 import io.github.burakkaygusuz.service.HttpClientService;
 import io.github.burakkaygusuz.service.ReportService;
 import io.github.burakkaygusuz.util.UrlUtils;
@@ -53,7 +54,7 @@ public class XssDetector {
                 if (responseText.contains(payload)) {
                   reportService.reportVulnerability(
                       new Vulnerability(
-                          "Cross-Site Scripting (XSS)", url, param.getKey(), payload));
+                          VulnerabilityType.CROSS_SITE_SCRIPTING, url, param.getKey(), payload));
                 }
               }
             } catch (Exception e) {

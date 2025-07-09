@@ -33,7 +33,7 @@ public class WebCrawler {
       HttpClientService httpClientService,
       Consumer<String> urlFoundCallback) {
     this.httpClientService = httpClientService;
-    this.maxDepth = config.scanSettings().maxDepth();
+    this.maxDepth = config.scanSettings().getMaxDepth();
     this.urlFoundCallback = urlFoundCallback;
 
     try {
@@ -58,7 +58,8 @@ public class WebCrawler {
       urlFoundCallback.accept(url);
     }
 
-    try (Response response = httpClientService.executeRequest(url)) {
+    try {
+      Response response = httpClientService.executeRequest(url);
       if (!response.isSuccessful()) {
         logger.warn("Non-successful response for {}: {}", url, response.code());
         return;
@@ -92,6 +93,7 @@ public class WebCrawler {
           }
         }
       }
+      response.close();
     } catch (IOException e) {
       logger.error("Error crawling {}: {}", url, e.getMessage());
     }

@@ -1,19 +1,61 @@
 package io.github.burakkaygusuz.config;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.Min;
 
-public record ScanSettings(
-    @JsonProperty("max_depth") int maxDepth, @JsonProperty("timeout_seconds") int timeoutSeconds) {
-  public ScanSettings {
-    if (maxDepth < 1) {
-      throw new IllegalArgumentException("Max depth must be at least 1");
-    }
-    if (timeoutSeconds < 1) {
-      throw new IllegalArgumentException("Timeout must be at least 1 second");
-    }
+/** Configuration properties for scan settings. Used as nested configuration in ScannerConfig. */
+public class ScanSettings {
+
+  @Min(1)
+  private int maxDepth = 3;
+
+  @Min(1)
+  private int timeoutSeconds = 30;
+
+  @Min(1)
+  private int rateLimitRequestsPerSecond = 3;
+
+  @Min(1)
+  private int rateLimitTimeoutSeconds = 30;
+
+  public int getMaxDepth() {
+    return maxDepth;
   }
 
+  public void setMaxDepth(int maxDepth) {
+    this.maxDepth = maxDepth;
+  }
+
+  public int getTimeoutSeconds() {
+    return timeoutSeconds;
+  }
+
+  public void setTimeoutSeconds(int timeoutSeconds) {
+    this.timeoutSeconds = timeoutSeconds;
+  }
+
+  public int getRateLimitRequestsPerSecond() {
+    return rateLimitRequestsPerSecond;
+  }
+
+  public void setRateLimitRequestsPerSecond(int rateLimitRequestsPerSecond) {
+    this.rateLimitRequestsPerSecond = rateLimitRequestsPerSecond;
+  }
+
+  public int getRateLimitTimeoutSeconds() {
+    return rateLimitTimeoutSeconds;
+  }
+
+  public void setRateLimitTimeoutSeconds(int rateLimitTimeoutSeconds) {
+    this.rateLimitTimeoutSeconds = rateLimitTimeoutSeconds;
+  }
+
+  /**
+   * Creates default scan settings. Note: With Spring Boot, defaults are handled via field
+   * initialization.
+   *
+   * @return default scan settings
+   */
   public static ScanSettings defaultSettings() {
-    return new ScanSettings(3, 30);
+    return new ScanSettings();
   }
 }

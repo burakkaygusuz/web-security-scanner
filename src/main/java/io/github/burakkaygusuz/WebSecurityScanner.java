@@ -1,8 +1,8 @@
 package io.github.burakkaygusuz;
 
-import io.github.burakkaygusuz.config.ConfigLoader;
 import io.github.burakkaygusuz.config.ScannerConfig;
 import io.github.burakkaygusuz.crawler.WebCrawler;
+import io.github.burakkaygusuz.model.Vulnerability;
 import io.github.burakkaygusuz.scanner.VulnerabilityScanner;
 import io.github.burakkaygusuz.service.HttpClientService;
 import io.github.burakkaygusuz.service.ReportService;
@@ -11,34 +11,46 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
+@Component
 public class WebSecurityScanner {
 
   private static final Logger logger = LoggerFactory.getLogger(WebSecurityScanner.class);
 
-  private final String targetUrl;
   private final ScannerConfig config;
   private final HttpClientService httpClientService;
   private final ReportService reportService;
   private final VulnerabilityScanner vulnerabilityScanner;
-  private final WebCrawler webCrawler;
 
-  public WebSecurityScanner(String targetUrl) {
-    this.config = ConfigLoader.loadConfig();
+  private String targetUrl;
+  private WebCrawler webCrawler;
 
+  public WebSecurityScanner(
+      ScannerConfig config,
+      HttpClientService httpClientService,
+      ReportService reportService,
+      VulnerabilityScanner vulnerabilityScanner) {
+    this.config = config;
+    this.httpClientService = httpClientService;
+    this.reportService = reportService;
+    this.vulnerabilityScanner = vulnerabilityScanner;
+  }
+
+  public void setTargetUrl(String targetUrl) {
     if (!UrlUtils.isValidUrl(targetUrl)) {
       throw new IllegalArgumentException("Invalid target URL: " + targetUrl);
     }
-
     this.targetUrl = targetUrl;
-    this.httpClientService = new HttpClientService(config);
-    this.reportService = new ReportService();
-    this.vulnerabilityScanner = new VulnerabilityScanner(config, httpClientService, reportService);
     this.webCrawler =
         new WebCrawler(targetUrl, config, httpClientService, this::scheduleVulnerabilityChecks);
   }
 
   public List<Vulnerability> scan() {
+    if (targetUrl == null) {
+      throw new IllegalStateException("Target URL must be set before scanning");
+    }
+
     logger.info("\nStarting security scan of {}\n", targetUrl);
 
     webCrawler.crawl(targetUrl, 0);
@@ -64,6 +76,6 @@ public class WebSecurityScanner {
   }
 
   public int getVisitedUrlsCount() {
-    return webCrawler.getVisitedUrlsCount();
+    return webCrawler != null ? webCrawler.getVisitedUrlsCount() : 0;
   }
 }

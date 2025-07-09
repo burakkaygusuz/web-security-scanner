@@ -1,7 +1,8 @@
 package io.github.burakkaygusuz.detector;
 
-import io.github.burakkaygusuz.Vulnerability;
 import io.github.burakkaygusuz.config.ScannerConfig;
+import io.github.burakkaygusuz.model.Vulnerability;
+import io.github.burakkaygusuz.model.VulnerabilityType;
 import io.github.burakkaygusuz.service.HttpClientService;
 import io.github.burakkaygusuz.service.ReportService;
 import io.github.burakkaygusuz.util.UrlUtils;
@@ -38,19 +39,17 @@ public class SqlInjectionDetector {
           Map<String, String> params = UrlUtils.parseParameters(query);
 
           for (Map.Entry<String, String> param : params.entrySet()) {
-            try {
-              String testUrl = UrlUtils.buildTestUrl(url, param.getKey(), payload);
+            String testUrl = UrlUtils.buildTestUrl(url, param.getKey(), payload);
+            try (Response response = httpClientService.executeRequestWithRateLimit(testUrl)) {
+              if (!response.isSuccessful()) {
+                continue;
+              }
 
-              try (Response response = httpClientService.executeRequestWithRateLimit(testUrl)) {
-                if (!response.isSuccessful()) {
-                  continue;
-                }
-
-                String responseText = httpClientService.safeReadResponse(response).toLowerCase();
-                if (containsSqlErrorIndicators(responseText)) {
-                  reportService.reportVulnerability(
-                      new Vulnerability("SQL Injection", url, param.getKey(), payload));
-                }
+              String responseText = httpClientService.safeReadResponse(response).toLowerCase();
+              if (containsSqlErrorIndicators(responseText)) {
+                reportService.reportVulnerability(
+                    new Vulnerability(
+                        VulnerabilityType.SQL_INJECTION, url, param.getKey(), payload));
               }
             } catch (Exception e) {
               logger.warn(

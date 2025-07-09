@@ -1,7 +1,8 @@
 package io.github.burakkaygusuz.detector;
 
-import io.github.burakkaygusuz.Vulnerability;
 import io.github.burakkaygusuz.config.ScannerConfig;
+import io.github.burakkaygusuz.model.Vulnerability;
+import io.github.burakkaygusuz.model.VulnerabilityType;
 import io.github.burakkaygusuz.service.HttpClientService;
 import io.github.burakkaygusuz.service.ReportService;
 import java.util.HashMap;
@@ -39,29 +40,27 @@ public class SensitiveInfoDetector {
       }
     }
 
-    try {
-      try (Response response = httpClientService.executeRequestWithRateLimit(url)) {
-        if (!response.isSuccessful()) {
-          return;
-        }
+    try (Response response = httpClientService.executeRequest(url)) {
+      if (!response.isSuccessful()) {
+        return;
+      }
 
-        String responseText = httpClientService.safeReadResponse(response);
-        if (responseText.isEmpty()) {
-          return;
-        }
+      String responseText = httpClientService.safeReadResponse(response);
+      if (responseText.isEmpty()) {
+        return;
+      }
 
-        for (Map.Entry<String, Pattern> entry : sensitivePatterns.entrySet()) {
-          Pattern pattern = entry.getValue();
-          Matcher matcher = pattern.matcher(responseText);
+      for (Map.Entry<String, Pattern> entry : sensitivePatterns.entrySet()) {
+        Pattern pattern = entry.getValue();
+        Matcher matcher = pattern.matcher(responseText);
 
-          while (matcher.find()) {
-            reportService.reportVulnerability(
-                new Vulnerability(
-                    "Sensitive Information Exposure",
-                    url,
-                    entry.getKey(),
-                    entry.getValue().pattern()));
-          }
+        while (matcher.find()) {
+          reportService.reportVulnerability(
+              new Vulnerability(
+                  VulnerabilityType.SENSITIVE_INFO_EXPOSURE,
+                  url,
+                  entry.getKey(),
+                  entry.getValue().pattern()));
         }
       }
     } catch (Exception e) {

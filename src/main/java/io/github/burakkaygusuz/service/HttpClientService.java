@@ -10,7 +10,9 @@ import java.util.concurrent.TimeUnit;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import org.springframework.stereotype.Service;
 
+@Service
 public class HttpClientService {
 
   private static final org.slf4j.Logger logger =
@@ -38,7 +40,7 @@ public class HttpClientService {
     this.httpClient =
         new OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(config.scanSettings().timeoutSeconds(), TimeUnit.SECONDS)
+            .readTimeout(config.scanSettings().getTimeoutSeconds(), TimeUnit.SECONDS)
             .followRedirects(true)
             .followSslRedirects(true)
             .retryOnConnectionFailure(true)
@@ -52,9 +54,9 @@ public class HttpClientService {
 
     RateLimiterConfig rateLimiterConfig =
         RateLimiterConfig.custom()
-            .limitForPeriod(3)
+            .limitForPeriod(config.scanSettings().getRateLimitRequestsPerSecond())
             .limitRefreshPeriod(Duration.ofSeconds(1))
-            .timeoutDuration(Duration.ofSeconds(30))
+            .timeoutDuration(Duration.ofSeconds(config.scanSettings().getRateLimitTimeoutSeconds()))
             .build();
     this.rateLimiter = RateLimiter.of("scanner-rate-limiter", rateLimiterConfig);
   }
@@ -64,19 +66,28 @@ public class HttpClientService {
     return httpClient.newCall(request).execute();
   }
 
+  public Response executeRequest(Request request) throws IOException {
+    return httpClient.newCall(request).execute();
+  }
+
   public Response executeRequestWithRateLimit(String url) throws IOException {
     return rateLimiter.executeSupplier(
         () -> {
           try {
             return executeRequest(url);
-          } catch (Exception e) {
-            if (e instanceof IOException ioe) {
-              throw new RuntimeException("HTTP request failed: " + ioe.getMessage(), ioe);
-            } else if (e instanceof RuntimeException re) {
-              throw re;
-            } else {
-              throw new RuntimeException("Unexpected error during HTTP request", e);
-            }
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        });
+  }
+
+  public Response executeRequestWithRateLimit(Request request) throws IOException {
+    return rateLimiter.executeSupplier(
+        () -> {
+          try {
+            return executeRequest(request);
+          } catch (IOException e) {
+            throw new RuntimeException(e);
           }
         });
   }
