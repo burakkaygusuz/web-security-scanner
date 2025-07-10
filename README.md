@@ -190,28 +190,6 @@ For local development, it's recommended to install the Google Java Format plugin
 - **Eclipse**: Install the Google Java Format plugin
 - **VS Code**: Install the "Language Support for Java(TM) by Red Hat" extension with Google Java Format support
 
-### Git Hooks (Recommended)
-
-For the best development experience, install Git hooks that automatically handle code formatting:
-
-```bash
-./setup-git-hooks.sh
-```
-
-This installs two hooks:
-
-- **pre-commit**: Validates formatting before commits
-- **pre-push**: Automatically formats and commits code before pushes
-
-**How it works:**
-
-1. When you run `git push`, the pre-push hook automatically runs
-2. If your code is not properly formatted, it will be automatically formatted
-3. The formatted code is automatically committed with message "chore: auto-format Java code with Google Java Format"
-4. The push continues with the newly formatted and committed code
-5. No manual intervention required!
-
-
 
 ## 🛡️ Security Considerations
 
