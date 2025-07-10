@@ -1,23 +1,37 @@
 # Web Security Scanner
 
-This is a Java-based web security scanner designed to identify common web vulnerabilities such as SQL Injection, Cross-Site Scripting (XSS), and Sensitive Information Exposure. It crawls a target website, analyzes its pages, and reports any detected vulnerabilities.
 
-## Features
+A comprehensive Java-based web security scanner designed to identify common web vulnerabilities such as SQL Injection, Cross-Site Scripting (XSS), CSRF vulnerabilities, and Sensitive Information Exposure. Built with Spring Boot for modularity and enterprise-grade features.
 
-- **SQL Injection Detection**: Identifies potential SQL injection vulnerabilities by injecting various payloads into URL parameters.
-- **Cross-Site Scripting (XSS) Detection**: Detects XSS vulnerabilities by injecting XSS payloads into URL parameters and checking for their reflection in the response.
-- **Sensitive Information Exposure**: Scans web page content for patterns indicative of sensitive data like email addresses, phone numbers, and API keys.
-- **Web Crawler**: Navigates through the target website to discover and scan multiple pages.
+## 🚀 Features
 
-## Technologies Used
+- **SQL Injection Detection**: Identifies potential SQL injection vulnerabilities by injecting various payloads into URL parameters and forms
+- **Cross-Site Scripting (XSS) Detection**: Detects XSS vulnerabilities by injecting XSS payloads into URL parameters and checking for their reflection in the response
+- **CSRF Protection Testing**: Comprehensive CSRF token validation and same-site cookie testing
+- **Sensitive Information Exposure**: Scans web page content for patterns indicative of sensitive data like email addresses, phone numbers, SSNs, API keys, and credit card numbers
+- **Web Crawler**: Intelligent web crawler that navigates through the target website to discover and scan multiple pages
+- **Rate Limiting**: Built-in rate limiting to avoid overwhelming target servers
+- **Configurable Scanning**: Flexible configuration system for payloads, patterns, and scan settings
+- **Comprehensive Reporting**: Detailed vulnerability reports with color-coded output
+- **Database Integration**: Persistent storage of scan results using H2 database
+- **Spring Boot Architecture**: Enterprise-grade architecture with dependency injection and configuration management
 
-- **Java**: Core programming language.
-- **Spring Boot**: Application framework for rapid development, configuration, and dependency injection.
-- **Maven**: Project management and build automation tool.
-- **OkHttp**: For making HTTP requests.
-- **JSoup**: For parsing and manipulating HTML.
-- **JLine**: For command-line interface interactions.
-- **SLF4J**: For logging.
+## 🛠️ Technologies Used
+
+- **Java 21**: Core programming language with modern features
+- **Spring Boot 3.2.0**: Enterprise application framework with dependency injection, configuration management, and auto-configuration
+- **Spring Data JPA**: Data persistence layer with H2 database
+- **Spring Boot Actuator**: Production-ready monitoring and management features
+- **Maven**: Project management and build automation tool
+- **OkHttp**: High-performance HTTP client for making requests
+- **JSoup**: HTML parsing and manipulation library
+- **JLine**: Advanced command-line interface interactions
+- **SLF4J + Logback**: Comprehensive logging framework
+- **Jackson**: JSON processing for configuration and reporting
+- **Resilience4j**: Rate limiting and fault tolerance
+- **JUnit 5**: Unit testing framework
+- **AssertJ**: Fluent assertion library for tests
+- **Mockito**: Mocking framework for unit tests
 
 ## How to Build
 
@@ -63,10 +77,84 @@ java -jar target/web-security-scanner-<version>.jar http://testphp.vulnweb.com -
 
 The scanner will output detected vulnerabilities directly to the console.
 
-## Spring Boot Features
+## 📊 Configuration
 
-- **Externalized Configuration**: Uses Spring Boot's configuration properties for flexible setup (see `application.yml` or `application.properties`).
-- **Dependency Injection**: Leverages Spring's DI for modularity and testability.
+The scanner uses Spring Boot's externalized configuration system. You can customize scanning behavior through:
+
+### Application Properties
+
+- **`application.yml`**: Main configuration file with default settings
+- **`application-test.yml`**: Test-specific configuration
+- **`scanner.cli.enabled`**: Enable/disable CLI mode (default: true)
+
+### Configurable Settings
+
+- **SQL Injection Payloads**: Customize SQL injection test payloads
+- **XSS Payloads**: Configure XSS detection patterns
+- **Sensitive Data Patterns**: Regular expressions for detecting sensitive information
+- **Scan Settings**: Max depth, timeout, rate limiting
+- **CSRF Settings**: Token validation rules and cookie policies
+
+### Example Configuration
+
+```yaml
+scanner:
+  cli:
+    enabled: true
+  scanSettings:
+    maxDepth: 3
+    timeoutSeconds: 30
+    rateLimitRequestsPerSecond: 3
+  csrfSettings:
+    testForms: true
+    checkSameSiteCookies: true
+    minimumTokenLength: 16
+```
+
+## 🧪 Testing
+
+The project includes comprehensive unit and integration tests.
+
+### Running Tests
+
+```bash
+# Run all tests
+mvn test
+
+# Run tests with specific profile
+mvn test -Dspring.profiles.active=test
+
+# Run specific test class
+mvn test -Dtest=ConfigLoaderTest
+
+# Run tests with coverage
+mvn test jacoco:report
+```
+
+### Test Coverage
+
+- **86 total tests** covering all major components
+- **Unit Tests**: Model classes, utilities, configuration
+- **Integration Tests**: Full application context, service layer
+- **Spring Boot Tests**: Configuration validation, dependency injection
+
+### Test Categories
+
+- **Configuration Tests**: Scanner configuration loading and validation
+- **Model Tests**: Vulnerability models, form data, CSRF scenarios
+- **Service Tests**: Report generation, data persistence
+- **Utility Tests**: URL utilities, helper functions
+- **Integration Tests**: End-to-end scanning workflows
+
+## 🔍 Spring Boot Features
+
+- **Externalized Configuration**: Flexible configuration through YAML/Properties files
+- **Dependency Injection**: Clean, testable architecture with Spring's IoC container
+- **Auto-Configuration**: Automatic setup of components based on classpath
+- **Actuator Endpoints**: Health checks, metrics, and monitoring
+- **Profile-Based Configuration**: Different settings for development, testing, and production
+- **Data Persistence**: JPA-based data access with H2 database
+- **Command Line Interface**: Optional CLI mode with JLine integration
 
 ## Code Formatting
 
@@ -123,6 +211,34 @@ This installs two hooks:
 4. The push continues with the newly formatted and committed code
 5. No manual intervention required!
 
-### CI/CD
 
-The GitHub Actions workflow automatically checks code formatting before running tests. If code is not properly formatted, the build will fail.
+
+## 🛡️ Security Considerations
+
+- **Rate Limiting**: Built-in rate limiting prevents overwhelming target servers
+- **Configurable Timeouts**: Prevents hanging requests
+- **Responsible Disclosure**: Only scan systems you own or have explicit permission to test
+- **No Persistent Attacks**: The scanner performs read-only vulnerability detection
+
+## 📈 Performance
+
+- **Concurrent Scanning**: Multi-threaded scanning for improved performance
+- **Memory Efficient**: Streaming processing of large responses
+- **Configurable Limits**: Adjustable depth and timeout settings
+- **Connection Pooling**: Efficient HTTP connection management
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## ⚠️ Legal Disclaimer
+
+This tool is intended for educational and authorized security testing purposes only. Users are responsible for ensuring they have proper authorization before scanning any systems. The developers are not responsible for any misuse of this tool.
+
+## 📞 Support
+
+For questions, issues, or contributions:
+
+- 🐛 [Report Issues](https://github.com/burakkaygusuz/web-security-scanner/issues)
+- 💬 [Discussions](https://github.com/burakkaygusuz/web-security-scanner/discussions)
+- 🔄 [Pull Requests](https://github.com/burakkaygusuz/web-security-scanner/pulls)
