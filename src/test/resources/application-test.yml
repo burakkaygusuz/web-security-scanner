@@ -1,0 +1,42 @@
+# Scanner Configuration for tests
+scanner:
+  # CLI mode disabled in tests
+  cli:
+    enabled: false
+  # SQL injection payloads
+  sqlPayloads:
+    - "'"
+    - "1' OR '1'='1"
+    - "' OR 1=1--"
+    - "' UNION SELECT NULL--"
+  
+  # XSS payloads
+  xssPayloads:
+    - "<script>alert('XSS')</script>"
+    - "<img src=x onerror=alert('XSS')>"
+    - "javascript:alert('XSS')"
+    - "<svg onload=alert('XSS')>"
+  
+  # Sensitive data patterns
+  sensitivePatterns:
+    email: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+    phone: "\\b\\d{3}[-.]?\\d{3}[-.]?\\d{4}\\b"
+    ssn: "\\b\\d{3}-\\d{2}-\\d{4}\\b"
+    api_key: "api[_-]?key[\\s]*[:=][\\s]*['\"]?[a-zA-Z0-9]+['\"]?"
+    credit_card: "\\b\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}\\b"
+  
+  # Scan settings
+  scanSettings:
+    maxDepth: 3
+    timeoutSeconds: 30
+  
+  # CSRF settings
+  csrfSettings:
+    testForms: true
+    checkSameSiteCookies: true
+    minimumTokenLength: 16
+
+logging:
+  level:
+    io.github.burakkaygusuz: INFO
+    org.springframework: WARN
