@@ -29,10 +29,16 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,configprops
+      base-path: /actuator
   endpoint:
     health:
       show-details: when-authorized
+      show-components: when-authorized
+      probes:
+        enabled: true
+    configprops:
+      show-values: when-authorized
 
 server:
   port: 8080
