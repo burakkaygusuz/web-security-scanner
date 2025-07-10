@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.stereotype.Component;
 import org.springframework.validation.annotation.Validated;
 
 /**
@@ -13,6 +14,7 @@ import org.springframework.validation.annotation.Validated;
  */
 @ConfigurationProperties(prefix = "scanner")
 @Validated
+@Component
 public class ScannerConfig {
 
   /** SQL injection payloads for testing */
