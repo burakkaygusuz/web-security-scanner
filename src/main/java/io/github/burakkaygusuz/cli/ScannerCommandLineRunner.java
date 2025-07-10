@@ -8,7 +8,9 @@ import org.jline.reader.*;
 import org.jline.terminal.*;
 import org.slf4j.*;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
 /**
@@ -22,14 +24,20 @@ public class ScannerCommandLineRunner implements CommandLineRunner {
   private static final Logger logger = LoggerFactory.getLogger(ScannerCommandLineRunner.class);
 
   private final WebSecurityScanner webSecurityScanner;
+  private final ApplicationContext applicationContext;
 
-  public ScannerCommandLineRunner(WebSecurityScanner webSecurityScanner) {
+  public ScannerCommandLineRunner(
+      WebSecurityScanner webSecurityScanner, ApplicationContext applicationContext) {
     this.webSecurityScanner = webSecurityScanner;
+    this.applicationContext = applicationContext;
   }
 
   @Override
   public void run(String... args) throws Exception {
     logger.info("Starting CLI Scanner...");
+    logger.debug(
+        "failOnVulnerabilities configuration: {}",
+        webSecurityScanner.getScannerConfig().cli().isFailOnVulnerabilities());
 
     String targetUrl = null;
 
@@ -45,6 +53,8 @@ public class ScannerCommandLineRunner implements CommandLineRunner {
           try {
             String line = reader.readLine("Enter target URL (or 'exit' to quit): ");
             if (line.equalsIgnoreCase("exit")) {
+              logger.info("User requested exit. Shutting down...");
+              shutdownApplication(0);
               return;
             }
 
@@ -56,6 +66,7 @@ public class ScannerCommandLineRunner implements CommandLineRunner {
             break;
           } catch (UserInterruptException | EndOfFileException e) {
             logger.info("User interrupted or reached end of file. Exiting...");
+            shutdownApplication(0);
             return;
           }
         }
@@ -67,10 +78,12 @@ public class ScannerCommandLineRunner implements CommandLineRunner {
 
     if (targetUrl == null || targetUrl.trim().isEmpty()) {
       logger.info("No target URL provided. Exiting.");
-      System.exit(0);
+      shutdownApplication(0);
+      return;
     }
 
     webSecurityScanner.setTargetUrl(targetUrl);
+    int exitCode = 0;
     try {
       List<Vulnerability> vulnerabilities = webSecurityScanner.scan();
 
@@ -82,8 +95,20 @@ public class ScannerCommandLineRunner implements CommandLineRunner {
           "\nScan Complete! Total URLs scanned: {}, Vulnerabilities found: {}",
           webSecurityScanner.getVisitedUrlsCount(),
           vulnerabilities.size());
+
+      if (webSecurityScanner.getScannerConfig().cli().isFailOnVulnerabilities()) {
+        exitCode = vulnerabilities.isEmpty() ? 0 : 1;
+      } else {
+        exitCode = 0;
+      }
+
+    } catch (Exception e) {
+      logger.error("Error during scan: {}", e.getMessage(), e);
+      exitCode = 2;
     } finally {
       webSecurityScanner.close();
+      logger.info("Shutting down application...");
+      shutdownApplication(exitCode);
     }
   }
 
@@ -159,5 +184,22 @@ public class ScannerCommandLineRunner implements CommandLineRunner {
           vul.payload() != null ? vul.payload() : "N/A");
     }
     System.out.println(separator);
+  }
+
+  /**
+   * Gracefully shuts down the Spring Boot application with the specified exit code.
+   *
+   * @param exitCode the exit code (0 = success, 1 = vulnerabilities found, 2 = error)
+   */
+  private void shutdownApplication(int exitCode) {
+    if (!this.webSecurityScanner.getScannerConfig().cli().isAutoShutdown()) return;
+
+    try {
+      Thread.sleep(100);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+
+    System.exit(SpringApplication.exit(applicationContext, () -> exitCode));
   }
 }

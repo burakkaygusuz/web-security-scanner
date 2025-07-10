@@ -48,6 +48,7 @@ scanner:
   # CLI mode settings
   cli:
     enabled: true
+    auto-shutdown: true
   # SQL injection payloads (can be overridden)
   sqlPayloads:
     - "'"

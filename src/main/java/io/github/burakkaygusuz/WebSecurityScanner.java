@@ -78,4 +78,8 @@ public class WebSecurityScanner {
   public int getVisitedUrlsCount() {
     return webCrawler != null ? webCrawler.getVisitedUrlsCount() : 0;
   }
+
+  public ScannerConfig getScannerConfig() {
+    return config;
+  }
 }

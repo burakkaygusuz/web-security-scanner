@@ -61,6 +61,25 @@ Or, after building the JAR:
 java -jar target/web-security-scanner-<version>.jar http://example.com --scanner.cli.enabled=true
 ```
 
+**Exit Code Configuration:**
+
+By default, the scanner always exits with code 0 (success) when the scan completes successfully, regardless of whether vulnerabilities are found. This allows the scanner to be used in CI/CD pipelines without failing the build based on vulnerability detection.
+
+To make the scanner exit with a non-zero code when vulnerabilities are found (useful for security gates in CI/CD):
+
+```bash
+# Using Maven
+mvn spring-boot:run -Dspring-boot.run.arguments="http://example.com" -Dspring-boot.run.jvmArguments="-Dscanner.cli.fail-on-vulnerabilities=true" -Dscanner.cli.enabled=true
+
+# Using JAR
+java -jar target/web-security-scanner-<version>.jar http://example.com --scanner.cli.enabled=true --scanner.cli.fail-on-vulnerabilities=true
+```
+
+With `fail-on-vulnerabilities=true`:
+- Exit code 0: No vulnerabilities found
+- Exit code 1: Vulnerabilities found
+- Exit code 2: Scan error occurred
+
 **Testing with a Vulnerable Website:**
 
 For testing purposes, you can use a known vulnerable website like `http://testphp.vulnweb.com/`. This will demonstrate the scanner's ability to detect various vulnerabilities.
@@ -86,6 +105,7 @@ The scanner uses Spring Boot's externalized configuration system. You can custom
 - **`application.yml`**: Main configuration file with default settings
 - **`application-test.yml`**: Test-specific configuration
 - **`scanner.cli.enabled`**: Enable/disable CLI mode (default: true)
+- **`scanner.cli.fail-on-vulnerabilities`**: Exit with non-zero code when vulnerabilities are found (default: false)
 
 ### Configurable Settings
 
@@ -101,6 +121,8 @@ The scanner uses Spring Boot's externalized configuration system. You can custom
 scanner:
   cli:
     enabled: true
+    auto-shutdown: true
+    fail-on-vulnerabilities: false  # Set to true for CI/CD security gates
   scanSettings:
     maxDepth: 3
     timeoutSeconds: 30

@@ -55,6 +55,8 @@ public class ScannerConfig {
   /** CSRF settings - nested configuration */
   @Valid @NotNull private CsrfSettings csrfSettings = new CsrfSettings();
 
+  @Valid @NotNull private CliSettings cli = new CliSettings();
+
   public List<String> getSqlPayloads() {
     return sqlPayloads;
   }
@@ -95,7 +97,14 @@ public class ScannerConfig {
     this.csrfSettings = csrfSettings;
   }
 
-  // Backward compatibility methods for record-style access
+  public CliSettings getCli() {
+    return cli;
+  }
+
+  public void setCli(CliSettings cli) {
+    this.cli = cli;
+  }
+
   public List<String> sqlPayloads() {
     return getSqlPayloads();
   }
@@ -114,5 +123,9 @@ public class ScannerConfig {
 
   public CsrfSettings csrfSettings() {
     return getCsrfSettings();
+  }
+
+  public CliSettings cli() {
+    return getCli();
   }
 }
